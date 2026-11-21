@@ -104,7 +104,7 @@ function showAuth(){ $("authPanel").style.display="grid"; $("lobbyPanel").style.
 let activityTimer=null;
 async function pulseActivity(){try{await api("/api/activity");}catch(e){console.warn("activity update:",e.message);}}
 function startActivity(){if(activityTimer)clearInterval(activityTimer);pulseActivity();activityTimer=setInterval(pulseActivity,60000);}
-function showLobby(){ $("authPanel").style.display="none"; $("shopPanel").style.display="none"; $("lobbyPanel").style.display="grid"; $("welcomeText").textContent="Игрок: "+currentUser.nick; loadRooms();startActivity(); }
+function showLobby(){ devUnlocked=!!currentUser?.devOverlay; $("authPanel").style.display="none"; $("shopPanel").style.display="none"; $("lobbyPanel").style.display="grid"; $("welcomeText").textContent="Игрок: "+currentUser.nick; loadRooms();startActivity(); }
 async function openShop(){
  try{
   const data=await api("/api/shop");$("shopCoins").textContent=data.coins;$("shopItems").innerHTML="";
@@ -114,11 +114,17 @@ async function openShop(){
    const desc=document.createElement("small");desc.textContent=item.description;
    const price=document.createElement("span");price.textContent=item.price===0?"Бесплатно":item.price+" монет";
    const action=document.createElement("button");action.className=item.owned?"secondary":"";
-   action.textContent=item.equipped?"НАДЕТО":item.owned?"НАДЕТЬ":"КУПИТЬ";action.disabled=!!item.equipped;
+   const feature=item.type==="feature";
+   action.textContent=feature?(item.owned?"КУПЛЕНО":"КУПИТЬ ЗА 5000"):item.equipped?"НАДЕТО":item.owned?"НАДЕТЬ":"КУПИТЬ";
+   action.disabled=feature?!!item.owned:!!item.equipped;
    action.onclick=async()=>{
     try{
-     if(!item.owned){const bought=await api("/api/shop/buy",{itemId:item.id});$("shopCoins").textContent=bought.coins;}
-     await api("/api/shop/equip",{itemId:item.id});await openShop();$("shopStatus").textContent="Предмет успешно экипирован.";
+     if(!item.owned){
+      const bought=await api("/api/shop/buy",{itemId:item.id});$("shopCoins").textContent=bought.coins;
+      if(feature){currentUser.devOverlay=true;devUnlocked=true;}
+     }
+     if(!feature)await api("/api/shop/equip",{itemId:item.id});
+     await openShop();$("shopStatus").textContent=feature?"Тактический OVERLAY разблокирован навсегда. Нажми Right Shift в игре.":"Предмет успешно экипирован.";
     }catch(e){$("shopStatus").textContent=e.message;}
    };
    card.append(title,desc,price,action);$("shopItems").append(card);
@@ -202,15 +208,11 @@ function playSound(freq=110,duration=.12,type="sawtooth"){
 }
 function openSettings(){if(!currentUser)return;$("settingsPanel").style.display="grid";if(document.pointerLockElement)document.exitPointerLock();}
 function openDevPanel(){
- if(!currentUser||currentUser.nick!=="Panic")return;
- $("devPanel").style.display="grid";$("devLogin").style.display=devUnlocked?"none":"block";$("devControls").style.display=devUnlocked?"block":"none";
+ if(!devUnlocked){message.textContent="Купи ТАКТИЧЕСКИЙ OVERLAY в магазине за 5000 монет";setTimeout(()=>message.textContent="",2200);return;}
+ $("devPanel").style.display="grid";$("devLogin").style.display="none";$("devControls").style.display="block";
  if(document.pointerLockElement)document.exitPointerLock();
 }
 $("devCloseButton").onclick=()=>{$("devPanel").style.display="none";if(joined&&!dead)renderer.domElement.requestPointerLock();};
-$("devVerifyButton").onclick=async()=>{
- try{await api("/api/dev/verify",{password:$("devPassword").value});devUnlocked=true;$("devLogin").style.display="none";$("devControls").style.display="block";$("devStatus").textContent="Доступ подтверждён.";$("devPassword").value="";}
- catch(e){$("devStatus").textContent=e.message;}
-};
 function setDev(key,value){
  if(!devUnlocked)return;devState[key]=value;
  if(key==="weapon")sniper.visible=value;
@@ -408,8 +410,8 @@ document.addEventListener("mousemove",e=>{
  camera.rotation.set(pitch,yaw,0,"YXZ");
 });
 document.addEventListener("keydown",e=>{
- if(e.code==="RightShift"&&currentUser?.nick==="Panic"){e.preventDefault();openDevPanel();return;}
- if(e.code==="Escape"&&currentUser){e.preventDefault();if($("devPanel").style.display==="grid"){$("devPanel").style.display="none";}else if($("settingsPanel").style.display==="grid")closeSettings();else openSettings();return;}
+ if(e.code==="RightShift"&&currentUser){e.preventDefault();openDevPanel();return;}
+ if(e.code==="Escape"&&currentUser){e.preventDefault();if($("devPanel").style.display==="grid"){$("devPanel").style.display="none";}else if($("settingsPanel").style.display==="grid")closeSettings();else if($("shopPanel").style.display==="grid"){$("shopPanel").style.display="none";if(joined){$("lobbyPanel").style.display="none";}else{$("lobbyPanel").style.display="grid";}}else openSettings();return;}
  keys[e.code]=true;
  if(e.code==="KeyR")reload();
 });

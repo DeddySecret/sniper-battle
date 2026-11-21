@@ -372,7 +372,7 @@ function connect(){
     if(p.dead)g.visible=false;});
    updateCount();message.textContent="Лобби открыто · "+currentUser.nick;
    document.body.requestPointerLock?.();
-  } else if(m.type==="error"){message.textContent=m.message;}
+  } else if(m.type==="error"){message.textContent=m.message;joined=false;if(document.pointerLockElement)document.exitPointerLock();$("lobbyStatus").textContent=m.message;$("lobbyPanel").style.display="grid";if(ws)ws.close();}
   else if(m.type==="playerJoined"){
    const g=makeOpponent(m.player.id,m.player.nick,m.player.cosmetic);g.position.set(m.player.x,0,m.player.z);
    g.userData.targetX=m.player.x;g.userData.targetZ=m.player.z;g.userData.targetYaw=m.player.yaw||0;g.userData.health=m.player.hp??100;
@@ -406,7 +406,7 @@ function connect(){
   else if(m.type==="shotResult"){if(m.hit)playSound(520,.1,"sine");message.textContent=m.hit?"ПОПАДАНИЕ!":"ПРОМАХ";setTimeout(()=>message.textContent="",700);}
   else if(m.type==="score"){const mine=m.scores.find(s=>s.id===myId);if(mine)message.textContent="ТВОИ УБИЙСТВА: "+mine.score;}
  };
- ws.onclose=()=>{joined=false;message.textContent="Соединение потеряно";};
+ ws.onclose=()=>{const wasJoined=joined;joined=false;if(wasJoined&&currentUser){$("lobbyStatus").textContent="Соединение потеряно. Попробуй войти снова.";$("lobbyPanel").style.display="grid";}message.textContent="Соединение потеряно";};
 }
 function updateCount(n){playersLabel.textContent="ИГРОКИ "+(n??(players.size+1))+"/15";}
 

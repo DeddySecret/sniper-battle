@@ -23,20 +23,47 @@ ground.rotation.x=-Math.PI/2; ground.receiveShadow=true; scene.add(ground);
 function box(x,y,z,sx,sy,sz,color){
  const o=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz),mat(color));o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;scene.add(o);return o;
 }
+// Deterministic map: both players see exactly the same obstacles.
+let seed = 20261122;
+function rand(){ seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }
+const solidBoxes = [];
+const solidCircles = [];
+function addSolidBox(mesh, x,z,sx,sz){
+ solidBoxes.push({minX:x-sx/2,maxX:x+sx/2,minZ:z-sz/2,maxZ:z+sz/2});
+ return mesh;
+}
 // Ruined desert training ground
 for(let i=0;i<18;i++){
- const x=(Math.random()-.5)*58,z=(Math.random()-.5)*58;
- if(Math.abs(x)<7 && Math.abs(z)<7) continue;
- box(x,0.7,z,1.5+Math.random()*3,1.4+Math.random()*2,1.5+Math.random()*3, [0x77786b,0x8a806d,0x6d746b][i%3]);
+ const x=(rand()-.5)*58,z=(rand()-.5)*58;
+ if(Math.abs(x)<8 && Math.abs(z)<8) continue;
+ const sx=1.5+rand()*3, sy=1.4+rand()*2, sz=1.5+rand()*3;
+ const o=box(x,sy/2,z,sx,sy,sz,[0x77786b,0x8a806d,0x6d746b][i%3]);
+ addSolidBox(o,x,z,sx,sz);
 }
 for(let i=-2;i<=2;i++){
- box(i*5,1,-13,3,2,2,0x74796f);
- box(i*5,1,13,3,2,2,0x74796f);
+ const a=box(i*5,1,-13,3,2,2,0x74796f); addSolidBox(a,i*5,-13,3,2);
+ const b=box(i*5,1,13,3,2,2,0x74796f); addSolidBox(b,i*5,13,3,2);
 }
 for(let i=0;i<22;i++){
- const x=(Math.random()-.5)*60,z=(Math.random()-.5)*60;
- const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.12,.2,1.2,6),mat(0x574331));trunk.position.set(x,.6,z);scene.add(trunk);
- const crown=new THREE.Mesh(new THREE.ConeGeometry(.9,2.4,7),mat(0x53634b));crown.position.set(x,2.1,z);scene.add(crown);
+ const x=(rand()-.5)*60,z=(rand()-.5)*60;
+ if(Math.abs(x)<8 && Math.abs(z)<8) continue;
+ const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.16,.22,1.2,8),mat(0x574331));
+ trunk.position.set(x,.6,z);trunk.castShadow=true;trunk.receiveShadow=true;scene.add(trunk);
+ const crown=new THREE.Mesh(new THREE.ConeGeometry(1,2.5,8),mat(0x53634b));
+ crown.position.set(x,2.1,z);crown.castShadow=true;scene.add(crown);
+ solidCircles.push({x,z,r:.38});
+}
+// Collision test: circle player against solid map props.
+function blockedAt(x,z){
+ const r=.42;
+ if(x < -21+r || x > 21-r || z < -21+r || z > 21-r) return true;
+ for(const b of solidBoxes){
+  const cx=THREE.MathUtils.clamp(x,b.minX,b.maxX);
+  const cz=THREE.MathUtils.clamp(z,b.minZ,b.maxZ);
+  if((x-cx)*(x-cx)+(z-cz)*(z-cz)<r*r) return true;
+ }
+ for(const c of solidCircles) if(Math.hypot(x-c.x,z-c.z)<r+c.r) return true;
+ return false;
 }
 
 const sniper = new THREE.Group();
@@ -60,11 +87,59 @@ const joinPanel=document.getElementById("joinPanel");
 
 function makeOpponent(id){
  const g=new THREE.Group();
- const torso=new THREE.Mesh(new THREE.BoxGeometry(.7,1.05,.42),mat(0x394a3b));torso.position.y=1.1;g.add(torso);
- const head=new THREE.Mesh(new THREE.SphereGeometry(.24,12,10),mat(0xb28a67));head.position.y=1.82;g.add(head);
- const legs=new THREE.Mesh(new THREE.BoxGeometry(.48,.8,.32),mat(0x303b32));legs.position.y=.35;g.add(legs);
- const marker=new THREE.Mesh(new THREE.BoxGeometry(.85,.08,.08),mat(0xc94e39));marker.position.y=2.1;g.add(marker);
- g.position.set(0,0,0);scene.add(g);players.set(id,g);return g;
+ const uniform=mat(0x465342,.92), dark=mat(0x202a25,.85), vestMat=mat(0x303b35,.8);
+ const skin=mat(0xb98768,.9), fabric=mat(0x59624b,.95), metalMat=mat(0x252d30,.45);
+ const addMesh=(parent,geo,material,x,y,z,rx=0,ry=0,rz=0)=>{
+  const m=new THREE.Mesh(geo,material);m.position.set(x,y,z);m.rotation.set(rx,ry,rz);
+  m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;
+ };
+ // boots and articulated legs
+ const leftLeg=new THREE.Group();leftLeg.position.set(-.19,.83,0);g.add(leftLeg);
+ const rightLeg=new THREE.Group();rightLeg.position.set(.19,.83,0);g.add(rightLeg);
+ for(const [leg,side] of [[leftLeg,-1],[rightLeg,1]]){
+  addMesh(leg,new THREE.CapsuleGeometry(.105,.48,4,8),uniform,0,-.25,0);
+  addMesh(leg,new THREE.BoxGeometry(.22,.12,.34),dark,0,-.56,-.055);
+  addMesh(leg,new THREE.BoxGeometry(.23,.18,.23),fabric,0,-.12,-.015);
+  addMesh(leg,new THREE.BoxGeometry(.20,.12,.12),dark,0,-.36,-.015);
+ }
+ // torso with layered plate carrier
+ const torso=addMesh(g,new THREE.CapsuleGeometry(.31,.62,5,10),uniform,0,1.28,0);
+ addMesh(g,new THREE.BoxGeometry(.55,.62,.27),vestMat,0,1.34,-.015);
+ addMesh(g,new THREE.BoxGeometry(.42,.10,.29),dark,0,1.66,-.01);
+ // armor plates, pouches, straps and backpack
+ addMesh(g,new THREE.BoxGeometry(.34,.35,.045),fabric,0,1.38,-.17);
+ for(let i=0;i<3;i++) addMesh(g,new THREE.BoxGeometry(.105,.13,.09),dark,-.15+i*.15,1.13,-.20);
+ addMesh(g,new THREE.BoxGeometry(.32,.48,.18),dark,0,1.38,.22);
+ addMesh(g,new THREE.BoxGeometry(.12,.42,.055),fabric,-.18,1.35,.02,0,0,-.18);
+ addMesh(g,new THREE.BoxGeometry(.12,.42,.055),fabric,.18,1.35,.02,0,0,.18);
+ // neck, head, helmet, goggles and headset
+ addMesh(g,new THREE.CylinderGeometry(.09,.11,.16,10),skin,0,1.78,0);
+ addMesh(g,new THREE.SphereGeometry(.205,16,12),skin,0,2.00,0);
+ addMesh(g,new THREE.SphereGeometry(.225,16,10,0,Math.PI*2,0,Math.PI*.58),fabric,0,2.08,0);
+ addMesh(g,new THREE.BoxGeometry(.22,.065,.045),dark,0,2.035,-.19);
+ addMesh(g,new THREE.BoxGeometry(.085,.055,.025),metalMat,-.055,2.04,-.218);
+ addMesh(g,new THREE.BoxGeometry(.085,.055,.025),metalMat,.055,2.04,-.218);
+ addMesh(g,new THREE.CylinderGeometry(.045,.045,.08,8),dark,-.215,1.99,0,0,0,Math.PI/2);
+ // arms with shoulder pads and forearms
+ const leftArm=new THREE.Group();leftArm.position.set(-.39,1.55,0);g.add(leftArm);
+ const rightArm=new THREE.Group();rightArm.position.set(.39,1.55,0);g.add(rightArm);
+ for(const [arm,side] of [[leftArm,-1],[rightArm,1]]){
+  addMesh(arm,new THREE.SphereGeometry(.16,10,8),uniform,0,-.04,0);
+  addMesh(arm,new THREE.CapsuleGeometry(.105,.38,4,8),uniform,0,-.29,-.015,0,0,side*.08);
+  addMesh(arm,new THREE.BoxGeometry(.22,.16,.20),fabric,0,-.09,-.005);
+  addMesh(arm,new THREE.CapsuleGeometry(.085,.28,4,8),dark,0,-.57,-.035);
+  addMesh(arm,new THREE.SphereGeometry(.09,10,8),skin,0,-.76,-.05);
+ }
+ // visible slung rifle across chest
+ const rifle=new THREE.Group();rifle.position.set(.24,1.22,-.24);rifle.rotation.z=-.22;g.add(rifle);
+ addMesh(rifle,new THREE.BoxGeometry(.09,.10,.62),metalMat,0,0,0);
+ addMesh(rifle,new THREE.CylinderGeometry(.018,.018,.48,8),metalMat,0,.01,-.40,Math.PI/2);
+ addMesh(rifle,new THREE.BoxGeometry(.075,.12,.20),dark,0,-.01,.38);
+ // small shoulder insignia
+ addMesh(g,new THREE.BoxGeometry(.13,.10,.025),mat(0x8d9a78),-.34,1.53,-.04);
+ g.position.set(0,0,0);scene.add(g);
+ g.userData={leftLeg,rightLeg,leftArm,rightArm,baseY:0,phase:Math.random()*Math.PI*2};
+ players.set(id,g);return g;
 }
 function connect(){
  room=document.getElementById("roomInput").value.trim().toUpperCase()||"DUEL";
@@ -73,7 +148,7 @@ function connect(){
  ws.onmessage=e=>{
   const m=JSON.parse(e.data);
   if(m.type==="joined"){
-   myId=m.id;joined=true;joinPanel.style.display="none";
+   myId=m.id;joined=true;camera.position.set(m.x ?? 0,1.7,m.z ?? 8);joinPanel.style.display="none";
    document.getElementById("roomLabel").textContent="КОМНАТА "+m.room;
    m.players.forEach(p=>{const g=makeOpponent(p.id);g.position.set(p.x,0,p.z);});
    updateCount();message.textContent="Ожидание второго игрока...";
@@ -111,14 +186,23 @@ document.addEventListener("keydown",e=>{
 });
 document.addEventListener("keyup",e=>keys[e.code]=false);
 document.addEventListener("contextmenu",e=>e.preventDefault());
+function setScoped(value){
+ scoped=!!value;
+ scope.style.display=scoped?"block":"none";
+ document.getElementById("crosshair").style.display=scoped?"none":"block";
+ camera.fov=scoped?22:75;
+ camera.updateProjectionMatrix();
+}
 document.addEventListener("mousedown",e=>{
  if(!joined)return;
  if(document.pointerLockElement!==renderer.domElement){renderer.domElement.requestPointerLock();return;}
- if(e.button===2){scoped=!scoped;scope.style.display=scoped?"block":"none";camera.fov=scoped?24:75;camera.updateProjectionMatrix();}
+ if(e.button===2)setScoped(true);
  if(e.button===0)shoot();
 });
+document.addEventListener("mouseup",e=>{if(e.button===2)setScoped(false);});
+window.addEventListener("blur",()=>setScoped(false));
 document.addEventListener("pointerlockchange",()=>{
- if(document.pointerLockElement!==renderer.domElement && joined) message.textContent="Нажми по игре, чтобы продолжить";
+ if(document.pointerLockElement!==renderer.domElement && joined){setScoped(false);message.textContent="Нажми по игре, чтобы продолжить";}
  else if(joined)message.textContent="";
 });
 function reload(){
@@ -151,12 +235,28 @@ function animate(){
   const dir=new THREE.Vector3();
   if(keys.KeyW)dir.add(forward);if(keys.KeyS)dir.sub(forward);
   if(keys.KeyD)dir.add(right);if(keys.KeyA)dir.sub(right);
-  if(dir.lengthSq()>0){dir.normalize().multiplyScalar((keys.ShiftLeft?8:5)*dt);camera.position.add(dir);}
-  camera.position.x=THREE.MathUtils.clamp(camera.position.x,-20,20);
-  camera.position.z=THREE.MathUtils.clamp(camera.position.z,-20,20);
+  if(dir.lengthSq()>0){
+   dir.normalize().multiplyScalar((keys.ShiftLeft?7:4.5)*dt);
+   const nx=camera.position.x+dir.x, nz=camera.position.z+dir.z;
+   // Axis-separated resolution lets the player slide along walls instead of sticking.
+   if(!blockedAt(nx,camera.position.z)) camera.position.x=nx;
+   if(!blockedAt(camera.position.x,nz)) camera.position.z=nz;
+  }
   camera.position.y=1.7;
   if(performance.now()-lastSend>65){
    lastSend=performance.now();ws.send(JSON.stringify({type:"move",x:camera.position.x,z:camera.position.z,yaw}));
+  }
+ }
+ // Subtle procedural soldier movement makes opponents feel less static.
+ for(const g of players.values()){
+  const moving=g.userData && g.userData.moving;
+  if(g.userData){
+   const t=performance.now()*.008+g.userData.phase;
+   const swing=moving?Math.sin(t)*.38:Math.sin(t*.35)*.025;
+   g.userData.leftLeg.rotation.x=swing;
+   g.userData.rightLeg.rotation.x=-swing;
+   g.userData.leftArm.rotation.x=-swing*.55;
+   g.userData.rightArm.rotation.x=swing*.55;
   }
  }
  renderer.render(scene,camera);

@@ -47,7 +47,7 @@ wss.on("connection", ws => {
       p.room = room;
       p.x = roomCount(room) === 1 ? 5 : -5;
       p.z = 0;
-      send(ws, { type: "joined", id, room, players: [...players.values()].filter(q => q.room === room && q.id !== id).map(publicPlayer) });
+      send(ws, { type: "joined", id, room, x: p.x, z: p.z, players: [...players.values()].filter(q => q.room === room && q.id !== id).map(publicPlayer) });
       broadcast(room, { type: "playerJoined", player: publicPlayer(p) }, ws);
       broadcast(room, { type: "roomCount", count: roomCount(room) });
     }

@@ -18,7 +18,7 @@ New account, lobby and map-selection work is being developed on `feature/full-lo
 The web service needs:
 - `DATABASE_URL`: Render PostgreSQL Internal Database URL (keep it secret).
 - `AUTH_SECRET`: optional long random secret for signing login tokens. If omitted, the server derives the signing key from `DATABASE_URL`.
-- `DEV_OVERLAY_PASSWORD`: private developer-overlay password. Set it only in Render Environment; never put it in GitHub or chat. Register the reserved account with the exact nickname `Panic` and use this same secret as its account password. The overlay is available only to that account and is verified by the server.
+- No developer-overlay password is needed. The Tactical Overlay is a permanent account unlock purchasable by any player in the in-game shop for 5,000 coins.
 
 Never commit database URLs, passwords, or signing secrets to GitHub.
 
@@ -28,5 +28,5 @@ Never commit database URLs, passwords, or signing secrets to GitHub.
 - Map themes have distinct visual landmarks, but map-specific collision/layout tuning and additional gameplay polish still need testing.
 - Coin rewards: one coin per five kills and one coin per five minutes of online activity, capped at 28 time-based coins per rolling 24-hour window.
 - Cosmetic shop with purchases and equipped appearance, persisted in PostgreSQL.
-- ESC settings, generated sound effects, mouse inversion, and a Panic-only developer overlay (ESP, skeleton, health, names, weapon, radar and FOV circle).
-- Full browser and multiplayer testing is still required before merging. The developer overlay additionally needs `DEV_OVERLAY_PASSWORD` in Render Environment.
+- ESC settings, generated sound effects, mouse inversion, and a shop-unlocked Tactical Overlay (ESP, skeleton, health, names, weapon, radar and FOV circle).
+- Full browser and multiplayer testing is still required before merging. The Tactical Overlay is saved permanently to the player account after purchase.

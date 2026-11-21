@@ -352,7 +352,7 @@ function makeOpponent(id,nick="Игрок",cosmetic="standard"){
  const skeleton=new THREE.LineSegments(skGeo,new THREE.LineBasicMaterial({color:0x42ff82,depthTest:false}));skeleton.visible=devState.skeleton;g.add(skeleton);
  scene.add(g);
  const espBox=new THREE.BoxHelper(g,0xff3939);espBox.visible=devState.esp;scene.add(espBox);
- g.userData={leftLeg,rightLeg,leftArm,rightArm,nameSprite:label,healthBar,healthFill:hpFill,skeleton,espBox,health:100,baseY:0,phase:Math.random()*Math.PI*2,
+ g.userData={leftLeg,rightLeg,leftArm,rightArm,nick:String(nick),score:0,nameSprite:label,healthBar,healthFill:hpFill,skeleton,espBox,health:100,baseY:0,phase:Math.random()*Math.PI*2,
   targetX:0,targetZ:0,targetY:0,targetYaw:0,lastX:0,lastZ:0,moving:false,dead:false};
  players.set(id,g);return g;
 }
@@ -404,11 +404,17 @@ function connect(){
    g.userData.targetX=m.player.x;g.userData.targetZ=m.player.z;g.userData.targetYaw=m.player.yaw||0;
   }
   else if(m.type==="shotResult"){if(m.hit)playSound(520,.1,"sine");message.textContent=m.hit?"ПОПАДАНИЕ!":"ПРОМАХ";setTimeout(()=>message.textContent="",700);}
-  else if(m.type==="score"){const mine=m.scores.find(s=>s.id===myId);if(mine)message.textContent="ТВОИ УБИЙСТВА: "+mine.score;}
+  else if(m.type==="score"){for(const item of m.scores){const g=players.get(item.id);if(g&&g.userData)g.userData.score=item.score;}const mine=m.scores.find(s=>s.id===myId);if(mine)message.textContent="ТВОИ УБИЙСТВА: "+mine.score;refreshPlayerList();}
  };
  ws.onclose=()=>{const wasJoined=joined;joined=false;if(wasJoined&&currentUser){$("lobbyStatus").textContent="Соединение потеряно. Попробуй войти снова.";$("lobbyPanel").style.display="grid";}message.textContent="Соединение потеряно";};
 }
-function updateCount(n){playersLabel.textContent="ИГРОКИ "+(n??(players.size+1))+"/15";}
+function refreshPlayerList(){
+ const rows=$("playerRows");if(!rows)return;rows.innerHTML="";
+ const entries=[{nick:currentUser?.nick||"Ты",score:0,mine:true},...Array.from(players.values()).map(g=>({nick:g.userData?.nick||"Игрок",score:g.userData?.score||0,mine:false}))];
+ entries.sort((a,b)=>b.score-a.score);
+ for(const p of entries){const row=document.createElement("div");row.className="playerRow"+(p.mine?" mine":"");const name=document.createElement("span");name.textContent=(p.mine?"★ ":"")+p.nick;const score=document.createElement("b");score.textContent=String(p.score);row.append(name,score);rows.append(row);}
+}
+function updateCount(n){playersLabel.textContent="ИГРОКИ "+(n??(players.size+1))+"/15";refreshPlayerList();}
 
 
 document.addEventListener("mousemove",e=>{

@@ -257,8 +257,11 @@ wss.on("connection", ws => {
       const room = safeRoom(m.room);
       const roomInfo = rooms.get(room);
       if (!roomInfo) return send(ws, { type: "error", message: "Лобби больше не существует. Обнови список комнат." });
+      if (roomInfo.passwordHash && !checkPassword(String(m.password || ""), roomInfo.passwordHash))
+        return send(ws, { type: "error", message: "Неверный пароль комнаты." });
       if (roomCount(room) >= 15) return send(ws, { type: "error", message: "Лобби заполнено (максимум 15 игроков)." });
-      p.user = user; p.room = room; players.set(socketId, p);
+      const profile = await pool.query("SELECT equipped_cosmetic FROM users WHERE id=$1",[user.id]);
+      p.user = { ...user, cosmetic: profile.rows[0]?.equipped_cosmetic || "standard" }; p.room = room; players.set(socketId, p);
       const spawnIndex = roomCount(room) - 1;
       const spawnAngle = (spawnIndex / 15) * Math.PI * 2;
       p.x = Math.cos(spawnAngle) * 7; p.z = Math.sin(spawnAngle) * 7; p.yaw = Math.atan2(-p.x, -p.z);
@@ -310,7 +313,7 @@ wss.on("connection", ws => {
     if(room){players.delete(socketId);broadcast(room,{type:"playerLeft",id:socketId});broadcast(room,{type:"roomCount",count:roomCount(room)});}
   });
 });
-function publicPlayer(p){return{id:p.id,nick:p.user?.nick||"Игрок",x:p.x,z:p.z,y:p.y||0,yaw:p.yaw,hp:p.hp,score:p.score,dead:p.dead,ready:true};}
+function publicPlayer(p){return{id:p.id,nick:p.user?.nick||"Игрок",cosmetic:p.user?.cosmetic||"standard",x:p.x,z:p.z,y:p.y||0,yaw:p.yaw,hp:p.hp,score:p.score,dead:p.dead,ready:true};}
 
 const PORT=process.env.PORT||3000;
 initDb().then(()=>server.listen(PORT,"0.0.0.0",()=>console.log("Sniper Battle running on port "+PORT)))

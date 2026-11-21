@@ -28,6 +28,7 @@ let seed = 20261122;
 function rand(){ seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }
 const solidBoxes = [];
 const solidCircles = [];
+let mapObjects = null;
 function addSolidBox(mesh, x,z,sx,sz){
  solidBoxes.push({minX:x-sx/2,maxX:x+sx/2,minZ:z-sz/2,maxZ:z+sz/2});
  return mesh;
@@ -206,7 +207,7 @@ function playSound(freq=110,duration=.12,type="sawtooth"){
   osc.connect(gain);gain.connect(audioContext.destination);osc.start();osc.stop(audioContext.currentTime+duration);
  }catch{}
 }
-function openSettings(){if(!currentUser)return;$("settingsPanel").style.display="grid";if(document.pointerLockElement)document.exitPointerLock();}
+function openSettings(){if(!currentUser)return;$("leaveLobbyButton").style.display=joined?"block":"none";$("settingsPanel").style.display="grid";if(document.pointerLockElement)document.exitPointerLock();}
 function openDevPanel(){
  if(!devUnlocked){message.textContent="Купи ТАКТИЧЕСКИЙ OVERLAY в магазине за 5000 монет";setTimeout(()=>message.textContent="",2200);return;}
  $("devPanel").style.display="grid";$("devLogin").style.display="none";$("devControls").style.display="block";
@@ -251,7 +252,8 @@ $("invertToggle").onchange=e=>{invertMouse=e.target.checked;localStorage.setItem
 function applyMapTheme(id){
  const themes={desert:{sky:0x9ab4c1,fog:0x9ab4c1,ground:0x8b8869},forest:{sky:0x78968a,fog:0x78968a,ground:0x53684b},city:{sky:0x87919c,fog:0x87919c,ground:0x62666a},snow:{sky:0xc6d8e6,fog:0xc6d8e6,ground:0xd8e2e8},factory:{sky:0x747b80,fog:0x747b80,ground:0x555b5d},mountain:{sky:0x91a5b8,fog:0x91a5b8,ground:0x77766f}};
  const t=themes[id]||themes.desert;scene.background.setHex(t.sky);scene.fog.color.setHex(t.fog);ground.material.color.setHex(t.ground);
- const extra=new THREE.Group();scene.add(extra);
+ if(mapObjects){scene.remove(mapObjects);mapObjects.traverse(o=>{if(o.geometry)o.geometry.dispose();});}
+ const extra=new THREE.Group();mapObjects=extra;scene.add(extra);
  seed=20261122; solidBoxes.length=0; solidCircles.length=0;
  const put=(geo,color,x,y,z)=>{const o=new THREE.Mesh(geo,mat(color));o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;extra.add(o);return o;};
  if(id==="desert"){
@@ -398,7 +400,9 @@ function connect(){
    updateCount();message.textContent="Лобби открыто · "+currentUser.nick;
    document.body.requestPointerLock?.();
   } else if(m.type==="error"){message.textContent=m.message;joined=false;if(document.pointerLockElement)document.exitPointerLock();$("lobbyStatus").textContent=m.message;$("lobbyPanel").style.display="grid";if(ws)ws.close();}
-  else if(m.type==="playerJoined"){
+  else if(m.type==="chatMessage"){
+   appendChat(m.nick,m.text);
+  } else if(m.type==="playerJoined"){
    const g=makeOpponent(m.player.id,m.player.nick,m.player.cosmetic);g.position.set(m.player.x,0,m.player.z);
    g.userData.targetX=m.player.x;g.userData.targetZ=m.player.z;g.userData.targetY=m.player.y||0;g.userData.targetYaw=m.player.yaw||0;g.userData.health=m.player.hp??100;
    message.textContent="Противник подключился!";setTimeout(()=>message.textContent="",1800);updateCount();

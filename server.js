@@ -33,7 +33,8 @@ const SHOP_ITEMS = [
   { id:"arctic", name:"Арктический камуфляж", description:"Светлая зимняя экипировка", price:20, type:"outfit" },
   { id:"woodland", name:"Лесной камуфляж", description:"Маскировка для зелёных карт", price:35, type:"outfit" },
   { id:"gold", name:"Золотой декор винтовки", description:"Золотистые детали оружия", price:50, type:"weapon" },
-  { id:"redvisor", name:"Красный визор", description:"Яркий визор шлема", price:25, type:"helmet" }
+  { id:"redvisor", name:"Красный визор", description:"Яркий визор шлема", price:25, type:"helmet" },
+  { id:"tactical_overlay", name:"Тактический OVERLAY", description:"Открывает меню ESP, скелеты, здоровье, ники, оружие, радар и FOV. Доступно каждому игроку навсегда после покупки.", price:5000, type:"feature" }
 ];
 
 function send(ws, data) { if (ws.readyState === 1) ws.send(JSON.stringify(data)); }
@@ -166,7 +167,12 @@ app.post("/api/login", async (req, res) => {
     res.json({ token: makeToken(user), user });
   } catch (e) { console.error("login:", e); res.status(500).json({ error: "Ошибка входа." }); }
 });
-app.get("/api/me", auth, (req, res) => res.json({ user: { id: req.user.id, nick: req.user.nick } }));
+app.get("/api/me", auth, async (req, res) => {
+  try {
+    const owned = await pool.query("SELECT 1 FROM user_cosmetics WHERE user_id=$1 AND item_id=$2", [req.user.id, "tactical_overlay"]);
+    res.json({ user: { id: req.user.id, nick: req.user.nick, devOverlay: !!owned.rowCount } });
+  } catch (e) { console.error("profile:", e); res.status(500).json({ error: "Не удалось загрузить профиль." }); }
+});
 
 app.get("/api/shop", auth, async (req,res) => {
   try {
@@ -175,7 +181,7 @@ app.get("/api/shop", auth, async (req,res) => {
       pool.query("SELECT item_id FROM user_cosmetics WHERE user_id=$1",[req.user.id])
     ]);
     const ownedIds = new Set(["standard",...owned.rows.map(r=>r.item_id)]);
-    res.json({ coins:u.rows[0].coins, equipped:u.rows[0].equipped_cosmetic, items:SHOP_ITEMS.map(item=>({...item,owned:ownedIds.has(item.id),equipped:u.rows[0].equipped_cosmetic===item.id})) });
+    res.json({ coins:u.rows[0].coins, equipped:u.rows[0].equipped_cosmetic, items:SHOP_ITEMS.map(item=>({...item,owned:ownedIds.has(item.id),equipped:item.type!=="feature" && u.rows[0].equipped_cosmetic===item.id})) });
   } catch(e) { console.error("shop:",e);res.status(500).json({error:"Магазин временно недоступен."}); }
 });
 app.post("/api/shop/buy", auth, async (req,res) => {
@@ -196,7 +202,7 @@ app.post("/api/shop/buy", auth, async (req,res) => {
 });
 app.post("/api/shop/equip", auth, async (req,res) => {
   const itemId=String(req.body.itemId||"");
-  if(!SHOP_ITEMS.some(x=>x.id===itemId))return res.status(400).json({error:"Предмет не найден."});
+  if(!SHOP_ITEMS.some(x=>x.id===itemId) || SHOP_ITEMS.find(x=>x.id===itemId)?.type==="feature")return res.status(400).json({error:"Этот предмет нельзя экипировать."});
   try{
     if(itemId!=="standard"){
       const owned=await pool.query("SELECT 1 FROM user_cosmetics WHERE user_id=$1 AND item_id=$2",[req.user.id,itemId]);

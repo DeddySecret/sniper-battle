@@ -140,7 +140,7 @@ async function authenticate(mode){
  $("authStatus").textContent="Подожди...";
  try{
   const data=await api("/api/"+mode,{nick,password}); authToken=data.token;currentUser=data.user;
-  localStorage.setItem("sniperBattleToken",authToken);showLobby();$("authPassword").value="";
+  localStorage.setItem("sniperBattleToken",authToken);const profile=await api("/api/me");currentUser=profile.user;showLobby();$("authPassword").value="";
  }catch(e){$("authStatus").textContent=e.message;}
 }
 $("loginButton").onclick=()=>authenticate("login");

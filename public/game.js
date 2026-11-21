@@ -455,7 +455,7 @@ document.addEventListener("mousemove",e=>{
 document.addEventListener("keydown",e=>{
  if(e.target===$("chatInput"))return;
  if(e.code==="KeyT"&&joined){e.preventDefault();openChat();return;}
- if(e.code==="RightShift"&&currentUser){e.preventDefault();openDevPanel();return;}
+ if(e.code==="ShiftRight"&&currentUser){e.preventDefault();openDevPanel();return;}
  if(e.code==="Escape"&&currentUser){e.preventDefault();if($("chatBox").style.display==="block"){closeChat();return;}if($("devPanel").style.display==="grid"){$("devPanel").style.display="none";}else if($("settingsPanel").style.display==="grid")closeSettings();else if($("shopPanel").style.display==="grid"){$("shopPanel").style.display="none";if(joined){$("lobbyPanel").style.display="none";}else{$("lobbyPanel").style.display="grid";}}else openSettings();return;}
  keys[e.code]=true;
  if(e.code==="KeyR")reload();

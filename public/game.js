@@ -32,27 +32,7 @@ function addSolidBox(mesh, x,z,sx,sz){
  solidBoxes.push({minX:x-sx/2,maxX:x+sx/2,minZ:z-sz/2,maxZ:z+sz/2});
  return mesh;
 }
-// Ruined desert training ground
-for(let i=0;i<18;i++){
- const x=(rand()-.5)*58,z=(rand()-.5)*58;
- if(Math.abs(x)<8 && Math.abs(z)<8) continue;
- const sx=1.5+rand()*3, sy=1.4+rand()*2, sz=1.5+rand()*3;
- const o=box(x,sy/2,z,sx,sy,sz,[0x77786b,0x8a806d,0x6d746b][i%3]);
- addSolidBox(o,x,z,sx,sz);
-}
-for(let i=-2;i<=2;i++){
- const a=box(i*5,1,-13,3,2,2,0x74796f); addSolidBox(a,i*5,-13,3,2);
- const b=box(i*5,1,13,3,2,2,0x74796f); addSolidBox(b,i*5,13,3,2);
-}
-for(let i=0;i<22;i++){
- const x=(rand()-.5)*60,z=(rand()-.5)*60;
- if(Math.abs(x)<8 && Math.abs(z)<8) continue;
- const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.16,.22,1.2,8),mat(0x574331));
- trunk.position.set(x,.6,z);trunk.castShadow=true;trunk.receiveShadow=true;scene.add(trunk);
- const crown=new THREE.Mesh(new THREE.ConeGeometry(1,2.5,8),mat(0x53634b));
- crown.position.set(x,2.1,z);crown.castShadow=true;scene.add(crown);
- solidCircles.push({x,z,r:.38});
-}
+// Map geometry is created only after the server confirms the selected map.
 // Collision test: circle player against solid map props.
 function blockedAt(x,z){
  const r=.42;
@@ -257,8 +237,13 @@ function applyMapTheme(id){
  const themes={desert:{sky:0x9ab4c1,fog:0x9ab4c1,ground:0x8b8869},forest:{sky:0x78968a,fog:0x78968a,ground:0x53684b},city:{sky:0x87919c,fog:0x87919c,ground:0x62666a},snow:{sky:0xc6d8e6,fog:0xc6d8e6,ground:0xd8e2e8},factory:{sky:0x747b80,fog:0x747b80,ground:0x555b5d},mountain:{sky:0x91a5b8,fog:0x91a5b8,ground:0x77766f}};
  const t=themes[id]||themes.desert;scene.background.setHex(t.sky);scene.fog.color.setHex(t.fog);ground.material.color.setHex(t.ground);
  const extra=new THREE.Group();scene.add(extra);
+ seed=20261122; solidBoxes.length=0; solidCircles.length=0;
  const put=(geo,color,x,y,z)=>{const o=new THREE.Mesh(geo,mat(color));o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;extra.add(o);return o;};
- if(id==="forest"){
+ if(id==="desert"){
+  for(let i=0;i<18;i++){const x=(rand()-.5)*58,z=(rand()-.5)*58;if(Math.abs(x)<8&&Math.abs(z)<8)continue;const sx=1.5+rand()*3,sy=1.4+rand()*2,sz=1.5+rand()*3;put(new THREE.BoxGeometry(sx,sy,sz),[0x77786b,0x8a806d,0x6d746b][i%3],x,sy/2,z);solidBoxes.push({minX:x-sx/2,maxX:x+sx/2,minZ:z-sz/2,maxZ:z+sz/2});}
+  for(let i=-2;i<=2;i++){put(new THREE.BoxGeometry(3,2,2),0x74796f,i*5,1,-13);put(new THREE.BoxGeometry(3,2,2),0x74796f,i*5,1,13);solidBoxes.push({minX:i*5-1.5,maxX:i*5+1.5,minZ:-14,maxZ:-12},{minX:i*5-1.5,maxX:i*5+1.5,minZ:12,maxZ:14});}
+  for(let i=0;i<22;i++){const x=(rand()-.5)*60,z=(rand()-.5)*60;if(Math.abs(x)<8&&Math.abs(z)<8)continue;put(new THREE.CylinderGeometry(.16,.22,1.2,8),0x574331,x,.6,z);put(new THREE.ConeGeometry(1,2.5,8),0x53634b,x,2.1,z);solidCircles.push({x,z,r:.38});}
+ }else if(id==="forest"){
   for(let i=0;i<34;i++){const x=(rand()-.5)*58,z=(rand()-.5)*58;if(Math.abs(x)<7&&Math.abs(z)<7)continue;put(new THREE.CylinderGeometry(.18,.28,2.2,7),0x493b2d,x,1.1,z);put(new THREE.ConeGeometry(1.45,3.6,7),0x294b35,x,3.7,z);solidCircles.push({x,z,r:.34});}
  }else if(id==="city"){
   for(let i=0;i<12;i++){const x=(i%4-1.5)*13,z=(Math.floor(i/4)-1)*17;if(Math.abs(x)<7&&Math.abs(z)<7)continue;const h=4+(i%3)*2;put(new THREE.BoxGeometry(5,h,5),[0x555d67,0x74716c,0x4d5960][i%3],x,h/2,z);solidBoxes.push({minX:x-2.5,maxX:x+2.5,minZ:z-2.5,maxZ:z+2.5});for(let y=1;y<h;y+=1.5)put(new THREE.BoxGeometry(3,.07,.04),0xb6a16d,x,y,z-2.53);}

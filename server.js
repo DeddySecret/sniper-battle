@@ -266,7 +266,7 @@ app.post("/api/rooms/join", auth, (req, res) => {
 
 wss.on("connection", ws => {
   const socketId = crypto.randomBytes(8).toString("hex");
-  const p = { id: socketId, ws, room: null, user: null, x: 0, z: 0, yaw: 0, hp: 100, score: 0, lastShot: 0, dead: false };
+  const p = { id: socketId, ws, room: null, user: null, x: 0, z: 0, yaw: 0, hp: 100, score: 0, lastShot: 0, lastMoveAt: 0, dead: false };
   ws.on("message", async raw => {
     let m;
     try { m = JSON.parse(raw.toString()); } catch { return; }
@@ -289,7 +289,7 @@ wss.on("connection", ws => {
       p.user = { ...user, cosmetic: profile.rows[0]?.equipped_cosmetic || "standard" }; p.room = room; players.set(socketId, p);
       const spawnIndex = roomCount(room) - 1;
       const spawnAngle = (spawnIndex / 15) * Math.PI * 2;
-      p.x = Math.cos(spawnAngle) * 7; p.z = Math.sin(spawnAngle) * 7; p.yaw = Math.atan2(-p.x, -p.z);
+      p.x = Math.cos(spawnAngle) * 7; p.z = Math.sin(spawnAngle) * 7; p.yaw = Math.atan2(-p.x, -p.z); p.lastMoveAt = Date.now();
       send(ws, { type: "joined", id: socketId, nick: user.nick, room, roomName: roomInfo.name, mapId: roomInfo.mapId, x: p.x, z: p.z,
         players: [...players.values()].filter(q => q.room === room && q.id !== socketId).map(publicPlayer) });
       broadcast(room, { type: "playerJoined", player: publicPlayer(p) }, ws);
@@ -299,9 +299,19 @@ wss.on("connection", ws => {
     if (!p.room) return;
     if (m.type === "move") {
       if (p.dead) return;
-      p.x = Math.max(-21, Math.min(21, Number(m.x) || 0));
-      p.z = Math.max(-21, Math.min(21, Number(m.z) || 0));
-      p.yaw = Number(m.yaw) || 0;
+      const now = Date.now();
+      const elapsed = (now - p.lastMoveAt) / 1000;
+      if (elapsed < 0.045) return;
+      p.lastMoveAt = now;
+      const wantedX = Math.max(-21, Math.min(21, Number(m.x) || 0));
+      const wantedZ = Math.max(-21, Math.min(21, Number(m.z) || 0));
+      const dx = wantedX - p.x, dz = wantedZ - p.z;
+      const distance = Math.hypot(dx, dz);
+      const maxDistance = 9 * Math.min(elapsed, 0.25) + 0.15;
+      const scale = distance > maxDistance ? maxDistance / distance : 1;
+      p.x = Math.max(-21, Math.min(21, p.x + dx * scale));
+      p.z = Math.max(-21, Math.min(21, p.z + dz * scale));
+      p.yaw = Number.isFinite(Number(m.yaw)) ? Number(m.yaw) : p.yaw;
       p.y = Math.max(0, Math.min(2.5, Number(m.y) || 0));
       broadcast(p.room, { type: "playerMoved", player: publicPlayer(p) }, ws);
     }

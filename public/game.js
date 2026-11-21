@@ -406,7 +406,7 @@ function connect(){
   else if(m.type==="shotResult"){if(m.hit)playSound(520,.1,"sine");message.textContent=m.hit?"ПОПАДАНИЕ!":"ПРОМАХ";setTimeout(()=>message.textContent="",700);}
   else if(m.type==="score"){for(const item of m.scores){const g=players.get(item.id);if(g&&g.userData)g.userData.score=item.score;}const mine=m.scores.find(s=>s.id===myId);if(mine){myScore=mine.score;message.textContent="ТВОИ УБИЙСТВА: "+mine.score;}refreshPlayerList();}
  };
- ws.onclose=()=>{const wasJoined=joined;joined=false;if(wasJoined&&currentUser){$("lobbyStatus").textContent="Соединение потеряно. Попробуй войти снова.";$("lobbyPanel").style.display="grid";}message.textContent="Соединение потеряно";};
+ ws.onclose=()=>{const wasJoined=joined;joined=false;$("playerList").style.display="none";if(wasJoined&&currentUser){$("lobbyStatus").textContent="Соединение потеряно. Попробуй войти снова.";$("lobbyPanel").style.display="grid";}message.textContent="Соединение потеряно";};
 }
 function refreshPlayerList(){
  const rows=$("playerRows");if(!rows)return;rows.innerHTML="";
@@ -414,7 +414,7 @@ function refreshPlayerList(){
  entries.sort((a,b)=>b.score-a.score);
  for(const p of entries){const row=document.createElement("div");row.className="playerRow"+(p.mine?" mine":"");const name=document.createElement("span");name.textContent=(p.mine?"★ ":"")+p.nick;const score=document.createElement("b");score.textContent=String(p.score);row.append(name,score);rows.append(row);}
 }
-function updateCount(n){playersLabel.textContent="ИГРОКИ "+(n??(players.size+1))+"/15";refreshPlayerList();}
+function updateCount(n){playersLabel.textContent="ИГРОКИ "+(n??(players.size+1))+"/15";$("playerList").style.display=joined?"block":"none";refreshPlayerList();}
 
 
 document.addEventListener("mousemove",e=>{

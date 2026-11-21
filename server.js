@@ -27,6 +27,15 @@ const MAPS = [
   { id: "mountain", name: "Горный перевал" }
 ];
 
+
+const SHOP_ITEMS = [
+  { id:"standard", name:"Стандартная экипировка", description:"Базовый внешний вид", price:0, type:"outfit" },
+  { id:"arctic", name:"Арктический камуфляж", description:"Светлая зимняя экипировка", price:20, type:"outfit" },
+  { id:"woodland", name:"Лесной камуфляж", description:"Маскировка для зелёных карт", price:35, type:"outfit" },
+  { id:"gold", name:"Золотой декор винтовки", description:"Золотистые детали оружия", price:50, type:"weapon" },
+  { id:"redvisor", name:"Красный визор", description:"Яркий визор шлема", price:25, type:"helmet" }
+];
+
 function send(ws, data) { if (ws.readyState === 1) ws.send(JSON.stringify(data)); }
 function broadcast(room, data, except) {
   for (const p of players.values()) if (p.room === room && p.ws !== except) send(p.ws, data);
@@ -83,7 +92,33 @@ async function initDb() {
       nick VARCHAR(15) NOT NULL,
       nick_lower VARCHAR(15) NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
+      coins INTEGER NOT NULL DEFAULT 0,
+      activity_window_started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      activity_seconds INTEGER NOT NULL DEFAULT 0,
+      time_coins INTEGER NOT NULL DEFAULT 0,
+      last_activity_at TIMESTAMPTZ,
+      kill_progress INTEGER NOT NULL DEFAULT 0,
+      kills INTEGER NOT NULL DEFAULT 0,
+      equipped_cosmetic TEXT NOT NULL DEFAULT 'standard',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS coins INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS activity_window_started_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS activity_seconds INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS time_coins INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS kill_progress INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS kills INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS equipped_cosmetic TEXT NOT NULL DEFAULT 'standard';
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_cosmetics (
+      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      item_id TEXT NOT NULL,
+      purchased_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY(user_id,item_id)
     )
   `);
 }
@@ -120,6 +155,69 @@ app.post("/api/login", async (req, res) => {
   } catch (e) { console.error("login:", e); res.status(500).json({ error: "Ошибка входа." }); }
 });
 app.get("/api/me", auth, (req, res) => res.json({ user: { id: req.user.id, nick: req.user.nick } }));
+
+app.get("/api/shop", auth, async (req,res) => {
+  try {
+    const [u, owned] = await Promise.all([
+      pool.query("SELECT coins,equipped_cosmetic FROM users WHERE id=$1",[req.user.id]),
+      pool.query("SELECT item_id FROM user_cosmetics WHERE user_id=$1",[req.user.id])
+    ]);
+    const ownedIds = new Set(["standard",...owned.rows.map(r=>r.item_id)]);
+    res.json({ coins:u.rows[0].coins, equipped:u.rows[0].equipped_cosmetic, items:SHOP_ITEMS.map(item=>({...item,owned:ownedIds.has(item.id),equipped:u.rows[0].equipped_cosmetic===item.id})) });
+  } catch(e) { console.error("shop:",e);res.status(500).json({error:"Магазин временно недоступен."}); }
+});
+app.post("/api/shop/buy", auth, async (req,res) => {
+  const item=SHOP_ITEMS.find(x=>x.id===String(req.body.itemId||""));
+  if(!item || item.id==="standard") return res.status(400).json({error:"Предмет не найден."});
+  const client=await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const owned=await client.query("SELECT 1 FROM user_cosmetics WHERE user_id=$1 AND item_id=$2",[req.user.id,item.id]);
+    if(owned.rowCount){await client.query("ROLLBACK");return res.status(409).json({error:"Этот предмет уже куплен."});}
+    const debit=await client.query("UPDATE users SET coins=coins-$1 WHERE id=$2 AND coins >= $1 RETURNING coins",[item.price,req.user.id]);
+    if(!debit.rowCount){await client.query("ROLLBACK");return res.status(400).json({error:"Недостаточно монет."});}
+    await client.query("INSERT INTO user_cosmetics(user_id,item_id) VALUES($1,$2)",[req.user.id,item.id]);
+    await client.query("COMMIT");
+    res.json({coins:debit.rows[0].coins,itemId:item.id});
+  } catch(e){await client.query("ROLLBACK");console.error("buy:",e);res.status(500).json({error:"Покупка не удалась."});}
+  finally{client.release();}
+});
+app.post("/api/shop/equip", auth, async (req,res) => {
+  const itemId=String(req.body.itemId||"");
+  if(!SHOP_ITEMS.some(x=>x.id===itemId))return res.status(400).json({error:"Предмет не найден."});
+  try{
+    if(itemId!=="standard"){
+      const owned=await pool.query("SELECT 1 FROM user_cosmetics WHERE user_id=$1 AND item_id=$2",[req.user.id,itemId]);
+      if(!owned.rowCount)return res.status(403).json({error:"Сначала купи этот предмет."});
+    }
+    await pool.query("UPDATE users SET equipped_cosmetic=$1 WHERE id=$2",[itemId,req.user.id]);
+    res.json({equipped:itemId});
+  }catch(e){console.error("equip:",e);res.status(500).json({error:"Не удалось надеть предмет."});}
+});
+app.post("/api/activity", auth, async (req,res) => {
+  try{
+    const result=await pool.query(`
+      UPDATE users SET
+        activity_window_started_at=CASE WHEN NOW() >= activity_window_started_at + INTERVAL '24 hours' THEN NOW() ELSE activity_window_started_at END,
+        activity_seconds=CASE WHEN NOW() >= activity_window_started_at + INTERVAL '24 hours' THEN 0 ELSE activity_seconds END,
+        time_coins=CASE WHEN NOW() >= activity_window_started_at + INTERVAL '24 hours' THEN 0 ELSE time_coins END,
+        activity_seconds=(CASE WHEN NOW() >= activity_window_started_at + INTERVAL '24 hours' THEN 0 ELSE activity_seconds END)
+          + LEAST(300,GREATEST(0,COALESCE(EXTRACT(EPOCH FROM (NOW()-last_activity_at)),0)::INTEGER)),
+        last_activity_at=NOW()
+      WHERE id=$1
+      RETURNING coins,activity_seconds,time_coins
+    `,[req.user.id]);
+    const row=result.rows[0];
+    const earned=Math.min(28,Math.floor(row.activity_seconds/300));
+    const delta=Math.max(0,earned-row.time_coins);
+    if(delta){
+      const updated=await pool.query("UPDATE users SET coins=coins+$1,time_coins=$2 WHERE id=$3 RETURNING coins",[delta,earned,req.user.id]);
+      row.coins=updated.rows[0].coins;row.time_coins=earned;
+    }
+    res.json({coins:row.coins,nextTimeCoinIn:row.time_coins>=28?0:300-(row.activity_seconds%300),dailyTimeCoins:row.time_coins});
+  }catch(e){console.error("activity:",e);res.status(500).json({error:"Не удалось обновить игровое время."});}
+});
+
 app.get("/api/rooms", auth, (req, res) => {
   res.json({ rooms: [...rooms.values()].map(r => ({
     code: r.code, name: r.name, mapId: r.mapId, mapName: MAPS.find(m => m.id === r.mapId)?.name || r.mapId,
@@ -187,6 +285,11 @@ wss.on("connection", ws => {
       if (!target || target.dead || target.hp <= 0) return;
       if (Math.hypot(target.x-p.x,target.z-p.z)>32) return send(ws,{type:"shotResult",hit:false,reason:"Далеко"});
       target.hp=0; target.dead=true; p.score++;
+      pool.query(`
+        UPDATE users SET kills=kills+1,kill_progress=(kill_progress+1)%5,
+          coins=coins+CASE WHEN kill_progress+1>=5 THEN 1 ELSE 0 END
+        WHERE id=$1
+      `,[p.user.id]).catch(e=>console.error("kill reward:",e));
       send(target.ws,{type:"hit",hp:0,by:p.id,dead:true});
       broadcast(p.room,{type:"playerDied",id:target.id},target.ws);
       send(ws,{type:"shotResult",hit:true,damage:100,score:p.score});

@@ -196,7 +196,7 @@ async function beginGame(){
 })();
 
 const players = new Map();
-let myId=null, room=null, ws=null, joined=false, hp=100, ammo=5, scoped=false, reloading=false, dead=false;
+let myId=null, room=null, ws=null, joined=false, hp=100, ammo=5, scoped=false, reloading=false, dead=false, myScore=0;
 let yaw=0,pitch=0, lastSend=0, shotCooldown=0;
 const keys={};
 let playerHeight=0, verticalVelocity=0;
@@ -368,7 +368,7 @@ function connect(){
    myId=m.id;joined=true;camera.position.set(m.x ?? 0,1.7,m.z ?? 8);joinPanel.style.display="none"; $("roomLabel").textContent=m.roomName+" · "+m.room; applyMapTheme(m.mapId);
    document.getElementById("roomLabel").textContent="КОМНАТА "+m.room;
    m.players.forEach(p=>{const g=makeOpponent(p.id,p.nick,p.cosmetic);g.position.set(p.x,0,p.z);
-    g.userData.targetX=p.x;g.userData.targetZ=p.z;g.userData.targetY=p.y||0;g.userData.targetYaw=p.yaw||0;g.userData.health=p.hp??100;
+    g.userData.targetX=p.x;g.userData.targetZ=p.z;g.userData.targetY=p.y||0;g.userData.targetYaw=p.yaw||0;g.userData.health=p.hp??100;g.userData.score=p.score??0;
     if(p.dead)g.visible=false;});
    updateCount();message.textContent="Лобби открыто · "+currentUser.nick;
    document.body.requestPointerLock?.();
@@ -404,13 +404,13 @@ function connect(){
    g.userData.targetX=m.player.x;g.userData.targetZ=m.player.z;g.userData.targetYaw=m.player.yaw||0;
   }
   else if(m.type==="shotResult"){if(m.hit)playSound(520,.1,"sine");message.textContent=m.hit?"ПОПАДАНИЕ!":"ПРОМАХ";setTimeout(()=>message.textContent="",700);}
-  else if(m.type==="score"){for(const item of m.scores){const g=players.get(item.id);if(g&&g.userData)g.userData.score=item.score;}const mine=m.scores.find(s=>s.id===myId);if(mine)message.textContent="ТВОИ УБИЙСТВА: "+mine.score;refreshPlayerList();}
+  else if(m.type==="score"){for(const item of m.scores){const g=players.get(item.id);if(g&&g.userData)g.userData.score=item.score;}const mine=m.scores.find(s=>s.id===myId);if(mine){myScore=mine.score;message.textContent="ТВОИ УБИЙСТВА: "+mine.score;}refreshPlayerList();}
  };
  ws.onclose=()=>{const wasJoined=joined;joined=false;if(wasJoined&&currentUser){$("lobbyStatus").textContent="Соединение потеряно. Попробуй войти снова.";$("lobbyPanel").style.display="grid";}message.textContent="Соединение потеряно";};
 }
 function refreshPlayerList(){
  const rows=$("playerRows");if(!rows)return;rows.innerHTML="";
- const entries=[{nick:currentUser?.nick||"Ты",score:0,mine:true},...Array.from(players.values()).map(g=>({nick:g.userData?.nick||"Игрок",score:g.userData?.score||0,mine:false}))];
+ const entries=[{nick:currentUser?.nick||"Ты",score:myScore,mine:true},...Array.from(players.values()).map(g=>({nick:g.userData?.nick||"Игрок",score:g.userData?.score||0,mine:false}))];
  entries.sort((a,b)=>b.score-a.score);
  for(const p of entries){const row=document.createElement("div");row.className="playerRow"+(p.mine?" mine":"");const name=document.createElement("span");name.textContent=(p.mine?"★ ":"")+p.nick;const score=document.createElement("b");score.textContent=String(p.score);row.append(name,score);rows.append(row);}
 }

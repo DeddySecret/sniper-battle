@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sniper Battle 3D</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="hud">
+  <div class="brand">SNIPER <b>BATTLE</b> <small>3D • DUEL</small></div>
+  <div class="stats"><span id="roomLabel">КОМНАТА —</span><span id="playersLabel">ИГРОКИ 0/2</span><span id="health">❤ 100</span><span id="ammo">▣ 5 / 5</span></div>
+</div>
+<div id="crosshair">+</div>
+<div id="scope"><div class="scope-cross"></div></div>
+<div id="message">Подключение...</div>
+<div id="joinPanel">
+  <div class="panel">
+    <div class="logo">SNIPER <b>BATTLE</b></div>
+    <p>Снайперская дуэль на двоих</p>
+    <label>КОД КОМНАТЫ</label>
+    <input id="roomInput" maxlength="12" value="DUEL" autocomplete="off">
+    <button id="joinButton">ВОЙТИ В БОЙ</button>
+    <small>Друг должен ввести такой же код комнаты.</small>
+  </div>
+</div>
+<div id="help">WASD — движение · мышь — обзор · ЛКМ — выстрел · ПКМ — прицел · R — перезарядка · ESC — отпустить мышь</div>
+<script type="module" src="game.js"></script>
+</body></html>

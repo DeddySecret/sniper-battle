@@ -1,0 +1,18 @@
+*{box-sizing:border-box}body{margin:0;overflow:hidden;background:#111;color:#fff;font-family:Arial,sans-serif}canvas{display:block}
+#hud{position:absolute;z-index:3;top:0;left:0;right:0;padding:16px 22px;display:flex;justify-content:space-between;align-items:center;background:linear-gradient(#071019c9,transparent);pointer-events:none}
+.brand{font-weight:900;letter-spacing:2px;font-size:19px}.brand b,.logo b{color:#e6b84c}.brand small{display:block;font-size:9px;color:#a9b3b9;letter-spacing:4px;margin-top:3px}
+.stats{display:flex;gap:22px;font-size:12px;font-weight:bold;letter-spacing:1px;text-shadow:0 1px 4px #000}
+#crosshair{position:absolute;z-index:2;left:50%;top:50%;transform:translate(-50%,-50%);font-size:25px;color:#fff;text-shadow:0 0 4px #000;pointer-events:none}
+#message{position:absolute;z-index:4;top:22%;left:50%;transform:translateX(-50%);font-weight:bold;font-size:18px;text-shadow:0 2px 5px #000;pointer-events:none;text-align:center}
+#help{position:absolute;z-index:3;bottom:0;left:0;right:0;text-align:center;padding:13px;background:linear-gradient(transparent,#071019cc);font-size:11px;color:#e0e5e7;pointer-events:none}
+#joinPanel{position:absolute;z-index:10;inset:0;background:#071019c9;display:grid;place-items:center}
+.panel{width:min(360px,90vw);padding:30px;background:#17232c;border:1px solid #59646a;border-radius:12px;box-shadow:0 20px 80px #0009;text-align:center}
+.logo{font-size:28px;font-weight:900;letter-spacing:2px}.panel p{color:#bdc8ce;margin:8px 0 25px}
+label{display:block;text-align:left;font-size:10px;letter-spacing:2px;color:#e6b84c;margin-bottom:7px}
+input{width:100%;padding:13px;background:#0c151b;border:1px solid #55636a;border-radius:6px;color:white;font-size:18px;letter-spacing:4px;text-align:center;text-transform:uppercase}
+button{width:100%;padding:14px;margin:14px 0 10px;border:0;border-radius:6px;background:#d8a83d;color:#161616;font-weight:900;letter-spacing:1px;cursor:pointer}
+button:hover{background:#f0c45e}.panel small{display:block;color:#9eabb2;font-size:11px;line-height:1.5}
+#scope{display:none;position:absolute;z-index:2;inset:0;background:radial-gradient(circle,transparent 27%,#000 29%);pointer-events:none}
+#scope:after{content:"";position:absolute;inset:0;border:14px solid #090909;border-radius:50%;box-shadow:inset 0 0 15px #000}
+.scope-cross{position:absolute;left:50%;top:50%;width:1px;height:100%;background:#ffffff9c;transform:translateX(-50%)}
+.scope-cross:after{content:"";position:absolute;left:calc(50% - 50vw);top:50%;width:100vw;height:1px;background:#ffffff9c}

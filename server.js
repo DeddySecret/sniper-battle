@@ -276,7 +276,7 @@ function spawnObstacles(mapId) {
   let seed=20261122;
   const rand=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
   if(mapId==="desert"){
-    for(let i=0;i<18;i++){const x=(rand()-.5)*58,z=(rand()-.5)*58;if(Math.abs(x)<8&&Math.abs(z)<8)continue;const sx=1.5+rand()*3,sz=1.5+rand()*3;boxes.push({minX:x-sx/2,maxX:x+sx/2,minZ:z-sz/2,maxZ:z+sz/2});}
+    for(let i=0;i<18;i++){const x=(rand()-.5)*58,z=(rand()-.5)*58;if(Math.abs(x)<8&&Math.abs(z)<8)continue;const sx=1.5+rand()*3,sy=1.4+rand()*2,sz=1.5+rand()*3;boxes.push({minX:x-sx/2,maxX:x+sx/2,minZ:z-sz/2,maxZ:z+sz/2});}
     for(let i=-2;i<=2;i++)boxes.push({minX:i*5-1.5,maxX:i*5+1.5,minZ:-14,maxZ:-12},{minX:i*5-1.5,maxX:i*5+1.5,minZ:12,maxZ:14});
     for(let i=0;i<22;i++){const x=(rand()-.5)*60,z=(rand()-.5)*60;if(Math.abs(x)<8&&Math.abs(z)<8)continue;circles.push({x,z,r:.38});}
   }else if(mapId==="forest"){

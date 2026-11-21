@@ -66,16 +66,48 @@ function blockedAt(x,z){
  return false;
 }
 
+// Detailed anti-materiel sniper rifle inspired by the user's reference image.
 const sniper = new THREE.Group();
-const gunMat=mat(0x202a2d,.45), metal=mat(0x596268,.35);
-const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.045,.055,1.35,10),metal);barrel.rotation.x=Math.PI/2;barrel.position.set(0,0,-.72);sniper.add(barrel);
-const body=new THREE.Mesh(new THREE.BoxGeometry(.16,.18,.75),gunMat);body.position.set(0,-.05,-.1);sniper.add(body);
-const scopeTube=new THREE.Mesh(new THREE.CylinderGeometry(.075,.075,.38,12),metal);scopeTube.rotation.z=Math.PI/2;scopeTube.position.set(0,.16,-.16);sniper.add(scopeTube);
-const stock=new THREE.Mesh(new THREE.BoxGeometry(.13,.15,.4),mat(0x654b32));stock.position.set(0,-.04,.42);sniper.add(stock);
+const gunMat=mat(0x171b1d,.42), metal=mat(0x42494d,.32), polymer=mat(0x24292b,.72), rubber=mat(0x111415,.9);
+function gunPart(geo, material, x,y,z, rx=0,ry=0,rz=0){
+ const m=new THREE.Mesh(geo,material);m.position.set(x,y,z);m.rotation.set(rx,ry,rz);m.castShadow=true;sniper.add(m);return m;
+}
+// Long barrel and muzzle
+gunPart(new THREE.CylinderGeometry(.027,.038,1.55,12),metal,0,.005,-.98,Math.PI/2);
+gunPart(new THREE.CylinderGeometry(.045,.045,.12,12),gunMat,0,.005,-1.77,Math.PI/2);
+// Perforated handguard with visible vent holes along both sides
+gunPart(new THREE.BoxGeometry(.19,.19,.92),gunMat,0,.005,-.83);
+gunPart(new THREE.BoxGeometry(.205,.205,.95),metal,0,.005,-.83);
+for(let i=0;i<8;i++){
+ const z=-1.22+i*.11;
+ gunPart(new THREE.CylinderGeometry(.022,.022,.012,10),rubber,-.106,.008,z,0,0,Math.PI/2);
+ gunPart(new THREE.CylinderGeometry(.022,.022,.012,10),rubber,.106,.008,z,0,0,Math.PI/2);
+}
+// Receiver, magazine, pistol grip, rear stock and cheek rest
+gunPart(new THREE.BoxGeometry(.23,.22,.62),gunMat,0,-.045,-.12);
+gunPart(new THREE.BoxGeometry(.17,.31,.26),polymer,0,-.285,-.12);
+gunPart(new THREE.BoxGeometry(.13,.22,.23),rubber,0,-.24,.03,-.25);
+gunPart(new THREE.BoxGeometry(.17,.16,.55),polymer,0,-.055,.42);
+gunPart(new THREE.BoxGeometry(.15,.11,.38),rubber,0,.025,.55);
+gunPart(new THREE.BoxGeometry(.20,.06,.18),gunMat,0,.08,.27);
+// Top Picatinny rail and scope mounts
+gunPart(new THREE.BoxGeometry(.12,.035,1.18),metal,0,.14,-.55);
+for(let i=0;i<15;i++) gunPart(new THREE.BoxGeometry(.14,.025,.035),gunMat,0,.165,-1.08+i*.075);
+// Large optical scope with turrets
+gunPart(new THREE.CylinderGeometry(.075,.075,.48,16),gunMat,0,.29,-.45,Math.PI/2);
+gunPart(new THREE.CylinderGeometry(.095,.095,.08,16),metal,0,.29,-.68,Math.PI/2);
+gunPart(new THREE.CylinderGeometry(.09,.09,.08,16),metal,0,.29,-.22,Math.PI/2);
+gunPart(new THREE.CylinderGeometry(.045,.045,.12,12),gunMat,0,.39,-.45,0,0,Math.PI/2);
+gunPart(new THREE.CylinderGeometry(.035,.035,.11,12),gunMat,0,.29,-.45,0,0,Math.PI/2);
+// Bipod legs and feet under the forward handguard
+for(const side of [-1,1]){
+ const leg=gunPart(new THREE.CylinderGeometry(.018,.025,.48,8),metal,side*.13,-.27,-.78,0,0,side*.24);
+ gunPart(new THREE.BoxGeometry(.10,.035,.07),rubber,side*.19,-.51,-.78);
+}
 camera.add(sniper);sniper.position.set(.34,-.28,-.58);scene.add(camera);
 
 const players = new Map();
-let myId=null, room=null, ws=null, joined=false, hp=100, ammo=5, scoped=false, reloading=false;
+let myId=null, room=null, ws=null, joined=false, hp=100, ammo=5, scoped=false, reloading=false, dead=false;
 let yaw=0,pitch=0, lastSend=0, shotCooldown=0;
 const keys={};
 const message=document.getElementById("message");
@@ -138,7 +170,8 @@ function makeOpponent(id){
  // small shoulder insignia
  addMesh(g,new THREE.BoxGeometry(.13,.10,.025),mat(0x8d9a78),-.34,1.53,-.04);
  g.position.set(0,0,0);scene.add(g);
- g.userData={leftLeg,rightLeg,leftArm,rightArm,baseY:0,phase:Math.random()*Math.PI*2};
+ g.userData={leftLeg,rightLeg,leftArm,rightArm,baseY:0,phase:Math.random()*Math.PI*2,
+  targetX:0,targetZ:0,targetYaw:0,lastX:0,lastZ:0,moving:false,dead:false};
  players.set(id,g);return g;
 }
 function connect(){
@@ -150,28 +183,48 @@ function connect(){
   if(m.type==="joined"){
    myId=m.id;joined=true;camera.position.set(m.x ?? 0,1.7,m.z ?? 8);joinPanel.style.display="none";
    document.getElementById("roomLabel").textContent="КОМНАТА "+m.room;
-   m.players.forEach(p=>{const g=makeOpponent(p.id);g.position.set(p.x,0,p.z);});
+   m.players.forEach(p=>{const g=makeOpponent(p.id);g.position.set(p.x,0,p.z);
+    g.userData.targetX=p.x;g.userData.targetZ=p.z;g.userData.targetYaw=p.yaw||0;
+    if(p.dead)g.visible=false;});
    updateCount();message.textContent="Ожидание второго игрока...";
    document.body.requestPointerLock?.();
   } else if(m.type==="error"){message.textContent=m.message;}
   else if(m.type==="playerJoined"){
    const g=makeOpponent(m.player.id);g.position.set(m.player.x,0,m.player.z);
+   g.userData.targetX=m.player.x;g.userData.targetZ=m.player.z;g.userData.targetYaw=m.player.yaw||0;
    message.textContent="Противник подключился!";setTimeout(()=>message.textContent="",1800);updateCount();
   } else if(m.type==="playerMoved"){
    let g=players.get(m.player.id);if(!g)g=makeOpponent(m.player.id);
-   g.position.set(m.player.x,0,m.player.z);
-   g.rotation.y=m.player.yaw;
+   g.userData.targetX=m.player.x;g.userData.targetZ=m.player.z;g.userData.targetYaw=m.player.yaw;
+   g.userData.dead=!!m.player.dead;
+   g.visible=!g.userData.dead;
   } else if(m.type==="playerLeft"){
    const g=players.get(m.id);if(g)scene.remove(g);players.delete(m.id);updateCount();message.textContent="Противник отключился";
   } else if(m.type==="roomCount"){updateCount(m.count);}
-  else if(m.type==="hit"){hp=m.hp;health.textContent="❤ "+hp;if(hp<=0)message.textContent="ТЕБЯ УСТРАНИЛИ";}
-  else if(m.type==="respawn"){hp=100;health.textContent="❤ 100";message.textContent="ВОЗРОЖДЕНИЕ";setTimeout(()=>message.textContent="",1200);}
+  else if(m.type==="hit"){
+   hp=m.hp;health.textContent="❤ "+hp;
+   if(hp<=0){dead=true;document.getElementById("deathScreen").style.display="grid";setScoped(false);}
+  }
+  else if(m.type==="respawn"){
+   dead=false;hp=100;health.textContent="❤ 100";
+   camera.position.set(m.x,1.7,m.z);yaw=m.yaw||0;camera.rotation.set(pitch,yaw,0,"YXZ");
+   document.getElementById("deathScreen").style.display="none";
+   message.textContent="ВОЗРОЖДЕНИЕ";setTimeout(()=>message.textContent="",900);
+  }
+  else if(m.type==="playerDied"){
+   const g=players.get(m.id);if(g){g.visible=false;g.userData.dead=true;}
+  }
+  else if(m.type==="playerRespawned"){
+   let g=players.get(m.player.id);if(!g)g=makeOpponent(m.player.id);
+   g.visible=true;g.userData.dead=false;g.position.set(m.player.x,0,m.player.z);
+   g.userData.targetX=m.player.x;g.userData.targetZ=m.player.z;g.userData.targetYaw=m.player.yaw||0;
+  }
   else if(m.type==="shotResult"){message.textContent=m.hit?"ПОПАДАНИЕ!":"ПРОМАХ";setTimeout(()=>message.textContent="",700);}
   else if(m.type==="score"){const mine=m.scores.find(s=>s.id===myId);if(mine)message.textContent="ТВОИ УБИЙСТВА: "+mine.score;}
  };
  ws.onclose=()=>{joined=false;message.textContent="Соединение потеряно";};
 }
-function updateCount(n){playersLabel.textContent="ИГРОКИ "+(n??(players.size+1))+"/2";}
+function updateCount(n){playersLabel.textContent="ИГРОКИ "+(n??(players.size+1))+"/10";}
 document.getElementById("joinButton").onclick=connect;
 
 document.addEventListener("mousemove",e=>{
@@ -212,7 +265,7 @@ function reload(){
 }
 const raycaster=new THREE.Raycaster();
 function shoot(){
- if(ammo<=0||reloading||performance.now()-shotCooldown<850)return;
+ if(dead||!joined||ammo<=0||reloading||performance.now()-shotCooldown<850)return;
  shotCooldown=performance.now();ammo--;ammoLabel.textContent="▣ "+ammo+" / 5";
  raycaster.setFromCamera(new THREE.Vector2(0,0),camera);
  const targets=[...players.entries()].map(([id,g])=>({id,g}));
@@ -229,7 +282,7 @@ function shoot(){
 function animate(){
  requestAnimationFrame(animate);
  const dt=Math.min(clock.getDelta(),.04);
- if(joined && document.pointerLockElement===renderer.domElement){
+ if(joined && !dead && document.pointerLockElement===renderer.domElement){
   const forward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
   const right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));
   const dir=new THREE.Vector3();
@@ -249,15 +302,27 @@ function animate(){
  }
  // Subtle procedural soldier movement makes opponents feel less static.
  for(const g of players.values()){
-  const moving=g.userData && g.userData.moving;
-  if(g.userData){
-   const t=performance.now()*.008+g.userData.phase;
-   const swing=moving?Math.sin(t)*.38:Math.sin(t*.35)*.025;
-   g.userData.leftLeg.rotation.x=swing;
-   g.userData.rightLeg.rotation.x=-swing;
-   g.userData.leftArm.rotation.x=-swing*.55;
-   g.userData.rightArm.rotation.x=swing*.55;
-  }
+  if(!g.userData) continue;
+  const u=g.userData;
+  const oldX=g.position.x, oldZ=g.position.z;
+  // Smooth remote-player interpolation removes tiny network-step movement.
+  const blend=1-Math.exp(-dt*13);
+  g.position.x=THREE.MathUtils.lerp(g.position.x,u.targetX,blend);
+  g.position.z=THREE.MathUtils.lerp(g.position.z,u.targetZ,blend);
+  let yawDiff=((u.targetYaw-g.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI;
+  g.rotation.y+=yawDiff*blend;
+  const vx=(g.position.x-oldX)/Math.max(dt,.001), vz=(g.position.z-oldZ)/Math.max(dt,.001);
+  const speed=Math.hypot(vx,vz);
+  u.moving=speed>.18;
+  const t=performance.now()*.012+u.phase;
+  const stride=Math.min(1,speed/3.8);
+  const swing=u.moving?Math.sin(t)*(.55+stride*.22):Math.sin(t*.45)*.012;
+  u.leftLeg.rotation.x=swing;
+  u.rightLeg.rotation.x=-swing;
+  u.leftArm.rotation.x=-swing*.48;
+  u.rightArm.rotation.x=swing*.48;
+  // Gentle body bob while running/walking.
+  g.position.y=u.moving?Math.abs(Math.sin(t*2))*.035*stride:0;
  }
  renderer.render(scene,camera);
 }

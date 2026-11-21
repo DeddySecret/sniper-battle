@@ -4,7 +4,10 @@
 .stats{display:flex;gap:22px;font-size:12px;font-weight:bold;letter-spacing:1px;text-shadow:0 1px 4px #000}
 #crosshair{position:absolute;z-index:2;left:50%;top:50%;transform:translate(-50%,-50%);font-size:25px;color:#fff;text-shadow:0 0 4px #000;pointer-events:none}
 #message{position:absolute;z-index:4;top:22%;left:50%;transform:translateX(-50%);font-weight:bold;font-size:18px;text-shadow:0 2px 5px #000;pointer-events:none;text-align:center}
-#help{position:absolute;z-index:3;bottom:0;left:0;right:0;text-align:center;padding:13px;background:linear-gradient(transparent,#071019cc);font-size:11px;color:#e0e5e7;pointer-events:none}
+#deathScreen{display:none;position:absolute;z-index:8;inset:0;place-items:center;background:rgba(12,0,0,.72);pointer-events:none}
+.death-card{text-align:center;padding:34px 48px;border:1px solid #a43b35;background:rgba(25,12,12,.92);box-shadow:0 12px 60px #0009;border-radius:8px}
+.death-title{font-size:clamp(28px,5vw,54px);font-weight:900;letter-spacing:5px;color:#f1d6d2;text-shadow:0 3px 20px #c21f1f}
+.death-subtitle{margin-top:14px;font-size:15px;letter-spacing:1px;color:#e7b8b1}
 #joinPanel{position:absolute;z-index:10;inset:0;background:#071019c9;display:grid;place-items:center}
 .panel{width:min(360px,90vw);padding:30px;background:#17232c;border:1px solid #59646a;border-radius:12px;box-shadow:0 20px 80px #0009;text-align:center}
 .logo{font-size:28px;font-weight:900;letter-spacing:2px}.panel p{color:#bdc8ce;margin:8px 0 25px}

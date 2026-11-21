@@ -8,7 +8,7 @@
 <body>
 <div id="hud">
   <div class="brand">SNIPER <b>BATTLE</b> <small>3D • DUEL</small></div>
-  <div class="stats"><span id="roomLabel">КОМНАТА —</span><span id="playersLabel">ИГРОКИ 0/2</span><span id="health">❤ 100</span><span id="ammo">▣ 5 / 5</span></div>
+  <div class="stats"><span id="roomLabel">КОМНАТА —</span><span id="playersLabel">ИГРОКИ 0/10</span><span id="health">❤ 100</span><span id="ammo">▣ 5 / 5</span></div>
 </div>
 <div id="crosshair">+</div>
 <div id="scope"><div class="scope-cross"></div></div>
@@ -20,9 +20,13 @@
     <label>КОД КОМНАТЫ</label>
     <input id="roomInput" maxlength="12" value="DUEL" autocomplete="off">
     <button id="joinButton">ВОЙТИ В БОЙ</button>
-    <small>Друг должен ввести такой же код комнаты.</small>
   </div>
 </div>
-<div id="help">WASD — движение · мышь — обзор · ЛКМ — выстрел · Зажать ПКМ — прицел · R — перезарядка · ESC — отпустить мышь</div>
+<div id="deathScreen">
+  <div class="death-card">
+    <div class="death-title">ВЫ УСТРАНЕНЫ</div>
+    <div class="death-subtitle">Возрождение через 2 секунды...</div>
+  </div>
+</div>
 <script type="module" src="game.js"></script>
 </body></html>

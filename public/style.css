@@ -31,3 +31,41 @@ button:hover{background:#f0c45e}.panel small{display:block;color:#9eabb2;font-si
 #devFovCircle{display:none;position:absolute;z-index:3;left:50%;top:50%;width:260px;height:260px;transform:translate(-50%,-50%);border:1px solid rgba(255,80,80,.85);border-radius:50%;pointer-events:none;box-shadow:0 0 14px #f44a}.settingsPanel #devLogin input{margin-bottom:10px}#devRadarCanvas{display:none;position:absolute;z-index:6;right:18px;bottom:18px;width:180px;height:180px;border:1px solid #81919a;border-radius:8px;pointer-events:none}.settingsPanel #devControls{max-height:55vh;overflow:auto}.settingsPanel #devControls .settingCheck{padding:5px 0}
 
 #playerList{display:none;position:absolute;z-index:3;right:16px;top:92px;width:190px;padding:10px 12px;background:rgba(5,12,18,.68);border:1px solid #68798266;border-radius:6px;pointer-events:none}#playerList>b{display:block;color:#e6b84c;font-size:10px;letter-spacing:2px;margin-bottom:7px}.playerRow{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid #ffffff18;font-size:11px;color:#e2e8eb}.playerRow b{color:#e6b84c}.playerRow.mine span{color:#e6b84c}@media(max-width:650px){#playerList{top:72px;right:7px;width:145px;padding:7px;font-size:9px}}
+
+/* Tactical menu refresh */
+body{background:radial-gradient(ellipse at 50% 10%,#23343c 0,#101a21 45%,#070c10 100%);color:#f4f0e8}
+.screen{background:radial-gradient(ellipse at 50% 45%,rgba(18,32,39,.78),rgba(4,9,13,.96));backdrop-filter:blur(10px);padding:24px}
+.panel{background:linear-gradient(145deg,rgba(28,43,51,.98),rgba(12,21,28,.99));border:1px solid rgba(219,174,77,.42);border-radius:15px;box-shadow:0 28px 90px rgba(0,0,0,.65),inset 0 1px rgba(255,255,255,.06);text-align:left}
+.panel.wide{width:min(480px,94vw);padding:38px}
+.panel.lobby{width:min(1020px,96vw);padding:30px}
+.logo{font-size:clamp(25px,4vw,36px);font-weight:950;letter-spacing:3px;color:#f5f0e7;text-shadow:0 4px 24px #0008}
+.panel p{color:#aab9bd;line-height:1.5}
+label{font-size:10px;font-weight:800;letter-spacing:2px;color:#d8ad54;margin:13px 0 8px}
+.panel input,.panel select{background:rgba(4,11,15,.8);border:1px solid #40525b;border-radius:8px;padding:14px 15px;color:#f5f3ed;transition:border-color .15s,box-shadow .15s}
+.panel input:focus,.panel select:focus{outline:none;border-color:#e0b14d;box-shadow:0 0 0 3px rgba(224,177,77,.13)}
+button{background:linear-gradient(135deg,#e8bd60,#b9822e);border:1px solid #f1d18b;border-radius:8px;padding:14px 16px;font-size:11px;letter-spacing:1.5px;box-shadow:0 5px 16px #0004;transition:transform .15s,filter .15s}
+button:hover{background:linear-gradient(135deg,#f4d27d,#ca913a);transform:translateY(-1px);filter:brightness(1.06)}
+button:disabled{opacity:.55;cursor:not-allowed;transform:none}
+button.secondary{background:linear-gradient(135deg,#354b55,#24343d);border:1px solid #526975;color:#e8edef}
+.buttonRow{gap:12px;margin-top:8px}
+.lobbyTop{padding-bottom:17px;border-bottom:1px solid #ffffff18;margin-bottom:20px}
+.lobbyActions{align-items:center}
+.lobbyGrid{gap:18px}
+.lobbyCard{background:linear-gradient(145deg,rgba(8,17,23,.85),rgba(20,31,38,.85));border:1px solid #465963;border-radius:12px;padding:22px}
+.lobbyCard h3{font-size:12px;letter-spacing:2.5px;color:#e8bd60}
+.roomEntry{padding:12px 5px;border-bottom:1px solid #ffffff18}
+.roomEntry span{color:#dce5e6;line-height:1.5}
+.roomList{max-height:230px}
+#authStatus,#lobbyStatus{color:#bdc8c9}
+.shopPanel{width:min(900px,96vw);padding:30px}
+.shopItem{background:linear-gradient(145deg,#1c2b33,#0d171d);border:1px solid #465b65;border-radius:11px;padding:17px}
+.shopItem b{font-size:14px;letter-spacing:.4px}
+.shopItem span{font-weight:800}
+.settingsPanel{width:min(520px,94vw);padding:30px}
+#chatBox{display:none;position:absolute;z-index:9;left:22px;bottom:22px;width:min(390px,calc(100vw - 44px));padding:12px;background:rgba(6,14,19,.94);border:1px solid #b88d42;border-radius:10px;box-shadow:0 12px 45px #0009;pointer-events:auto}
+#chatMessages{max-height:190px;overflow:auto;display:flex;flex-direction:column;gap:5px;margin-bottom:9px;font-size:12px;color:#e8edef;overflow-wrap:anywhere}
+#chatMessages b{color:#e6b84c}
+#chatInput{width:100%;padding:11px 12px;background:#101c23;border:1px solid #52636b;border-radius:7px;color:white;font-size:13px;letter-spacing:0;text-align:left;text-transform:none}
+#chatInput::placeholder{color:#8b9aa0}
+#leaveLobbyButton{margin:20px 0 4px;width:100%}
+@media(max-width:650px){.panel.wide,.panel.lobby,.shopPanel,.settingsPanel{padding:20px}.screen{padding:10px}.lobbyCard{padding:15px}.lobbyTop{gap:12px;align-items:flex-start}.lobbyActions{flex-direction:row;flex-wrap:wrap}}

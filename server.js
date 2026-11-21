@@ -177,6 +177,7 @@ wss.on("connection", ws => {
       p.x = Math.max(-21, Math.min(21, Number(m.x) || 0));
       p.z = Math.max(-21, Math.min(21, Number(m.z) || 0));
       p.yaw = Number(m.yaw) || 0;
+      p.y = Math.max(0, Math.min(2.5, Number(m.y) || 0));
       broadcast(p.room, { type: "playerMoved", player: publicPlayer(p) }, ws);
     }
     if (m.type === "shoot") {
@@ -207,7 +208,7 @@ wss.on("connection", ws => {
     if(room){players.delete(socketId);broadcast(room,{type:"playerLeft",id:socketId});broadcast(room,{type:"roomCount",count:roomCount(room)});}
   });
 });
-function publicPlayer(p){return{id:p.id,nick:p.user?.nick||"Игрок",x:p.x,z:p.z,yaw:p.yaw,hp:p.hp,score:p.score,dead:p.dead,ready:true};}
+function publicPlayer(p){return{id:p.id,nick:p.user?.nick||"Игрок",x:p.x,z:p.z,y:p.y||0,yaw:p.yaw,hp:p.hp,score:p.score,dead:p.dead,ready:true};}
 
 const PORT=process.env.PORT||3000;
 initDb().then(()=>server.listen(PORT,"0.0.0.0",()=>console.log("Sniper Battle running on port "+PORT)))

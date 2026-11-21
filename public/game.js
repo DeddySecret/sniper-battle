@@ -111,6 +111,7 @@ camera.add(sniper);sniper.position.set(.34,-.28,-.58);scene.add(camera);
 let authToken = localStorage.getItem("sniperBattleToken") || "";
 let currentUser = null;
 let selectedRoom = null;
+let selectedRoomPassword = "";
 let selectedMap = "desert";
 const $ = id => document.getElementById(id);
 async function api(path, body) {
@@ -177,11 +178,11 @@ async function loadRooms(){
 $("refreshRoomsButton").onclick=loadRooms;
 $("createRoomButton").onclick=async()=>{
  try{const data=await api("/api/rooms/create",{name:$("roomName").value,mapId:$("mapSelect").value,password:$("createRoomPassword").value});
-  selectedRoom=data.room.code;selectedMap=data.room.mapId;beginGame();}catch(e){$("lobbyStatus").textContent=e.message;}
+  selectedRoom=data.room.code;selectedMap=data.room.mapId;selectedRoomPassword=$("createRoomPassword").value;beginGame();}catch(e){$("lobbyStatus").textContent=e.message;}
 };
 $("joinRoomButton").onclick=async()=>{
  try{const data=await api("/api/rooms/join",{code:$("roomCode").value,password:$("joinRoomPassword").value});
-  selectedRoom=data.room.code;selectedMap=data.room.mapId;beginGame();}catch(e){$("lobbyStatus").textContent=e.message;}
+  selectedRoom=data.room.code;selectedMap=data.room.mapId;selectedRoomPassword=$("joinRoomPassword").value;beginGame();}catch(e){$("lobbyStatus").textContent=e.message;}
 };
 async function beginGame(){
  $("lobbyPanel").style.display="none";joinPanel.style.display="none";
@@ -294,7 +295,7 @@ function connect(){
  if(!authToken||!room)return;
  $("roomLabel").textContent="ЛОББИ "+room;
  ws=new WebSocket((location.protocol==="https:"?"wss://":"ws://")+location.host);
- ws.onopen=()=>ws.send(JSON.stringify({type:"join",room,token:authToken}));
+ ws.onopen=()=>ws.send(JSON.stringify({type:"join",room,token:authToken,password:selectedRoomPassword}));
  ws.onmessage=e=>{
   const m=JSON.parse(e.data);
   if(m.type==="joined"){

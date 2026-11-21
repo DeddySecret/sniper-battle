@@ -28,6 +28,7 @@ let seed = 20261122;
 function rand(){ seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }
 const solidBoxes = [];
 const solidCircles = [];
+let mapObjects = null;
 function addSolidBox(mesh, x,z,sx,sz){
  solidBoxes.push({minX:x-sx/2,maxX:x+sx/2,minZ:z-sz/2,maxZ:z+sz/2});
  return mesh;
@@ -104,7 +105,7 @@ function showAuth(){ $("authPanel").style.display="grid"; $("lobbyPanel").style.
 let activityTimer=null;
 async function pulseActivity(){try{await api("/api/activity");}catch(e){console.warn("activity update:",e.message);}}
 function startActivity(){if(activityTimer)clearInterval(activityTimer);pulseActivity();activityTimer=setInterval(pulseActivity,60000);}
-function showLobby(){ $("authPanel").style.display="none"; $("shopPanel").style.display="none"; $("lobbyPanel").style.display="grid"; $("welcomeText").textContent="Игрок: "+currentUser.nick; loadRooms();startActivity(); }
+function showLobby(){ devUnlocked=!!currentUser?.devOverlay; $("authPanel").style.display="none"; $("shopPanel").style.display="none"; $("lobbyPanel").style.display="grid"; $("welcomeText").textContent="Игрок: "+currentUser.nick; loadRooms();startActivity(); }
 async function openShop(){
  try{
   const data=await api("/api/shop");$("shopCoins").textContent=data.coins;$("shopItems").innerHTML="";
@@ -114,11 +115,17 @@ async function openShop(){
    const desc=document.createElement("small");desc.textContent=item.description;
    const price=document.createElement("span");price.textContent=item.price===0?"Бесплатно":item.price+" монет";
    const action=document.createElement("button");action.className=item.owned?"secondary":"";
-   action.textContent=item.equipped?"НАДЕТО":item.owned?"НАДЕТЬ":"КУПИТЬ";action.disabled=!!item.equipped;
+   const feature=item.type==="feature";
+   action.textContent=feature?(item.owned?"КУПЛЕНО":"КУПИТЬ ЗА 5000"):item.equipped?"НАДЕТО":item.owned?"НАДЕТЬ":"КУПИТЬ";
+   action.disabled=feature?!!item.owned:!!item.equipped;
    action.onclick=async()=>{
     try{
-     if(!item.owned){const bought=await api("/api/shop/buy",{itemId:item.id});$("shopCoins").textContent=bought.coins;}
-     await api("/api/shop/equip",{itemId:item.id});await openShop();$("shopStatus").textContent="Предмет успешно экипирован.";
+     if(!item.owned){
+      const bought=await api("/api/shop/buy",{itemId:item.id});$("shopCoins").textContent=bought.coins;
+      if(feature){currentUser.devOverlay=true;devUnlocked=true;}
+     }
+     if(!feature)await api("/api/shop/equip",{itemId:item.id});
+     await openShop();$("shopStatus").textContent=feature?"Тактический OVERLAY разблокирован навсегда. Нажми Right Shift в игре.":"Предмет успешно экипирован.";
     }catch(e){$("shopStatus").textContent=e.message;}
    };
    card.append(title,desc,price,action);$("shopItems").append(card);
@@ -134,7 +141,7 @@ async function authenticate(mode){
  $("authStatus").textContent="Подожди...";
  try{
   const data=await api("/api/"+mode,{nick,password}); authToken=data.token;currentUser=data.user;
-  localStorage.setItem("sniperBattleToken",authToken);showLobby();$("authPassword").value="";
+  localStorage.setItem("sniperBattleToken",authToken);const profile=await api("/api/me");currentUser=profile.user;showLobby();$("authPassword").value="";
  }catch(e){$("authStatus").textContent=e.message;}
 }
 $("loginButton").onclick=()=>authenticate("login");
@@ -200,17 +207,13 @@ function playSound(freq=110,duration=.12,type="sawtooth"){
   osc.connect(gain);gain.connect(audioContext.destination);osc.start();osc.stop(audioContext.currentTime+duration);
  }catch{}
 }
-function openSettings(){if(!currentUser)return;$("settingsPanel").style.display="grid";if(document.pointerLockElement)document.exitPointerLock();}
+function openSettings(){if(!currentUser)return;$("leaveLobbyButton").style.display=joined?"block":"none";$("settingsPanel").style.display="grid";if(document.pointerLockElement)document.exitPointerLock();}
 function openDevPanel(){
- if(!currentUser||currentUser.nick!=="Panic")return;
- $("devPanel").style.display="grid";$("devLogin").style.display=devUnlocked?"none":"block";$("devControls").style.display=devUnlocked?"block":"none";
+ if(!devUnlocked){message.textContent="Купи ТАКТИЧЕСКИЙ OVERLAY в магазине за 5000 монет";setTimeout(()=>message.textContent="",2200);return;}
+ $("devPanel").style.display="grid";$("devLogin").style.display="none";$("devControls").style.display="block";
  if(document.pointerLockElement)document.exitPointerLock();
 }
 $("devCloseButton").onclick=()=>{$("devPanel").style.display="none";if(joined&&!dead)renderer.domElement.requestPointerLock();};
-$("devVerifyButton").onclick=async()=>{
- try{await api("/api/dev/verify",{password:$("devPassword").value});devUnlocked=true;$("devLogin").style.display="none";$("devControls").style.display="block";$("devStatus").textContent="Доступ подтверждён.";$("devPassword").value="";}
- catch(e){$("devStatus").textContent=e.message;}
-};
 function setDev(key,value){
  if(!devUnlocked)return;devState[key]=value;
  if(key==="weapon")sniper.visible=value;
@@ -227,6 +230,19 @@ for(const key of ["esp","skeleton","health","names","weapon","radar","fov"]){
  const input=$("dev"+key.charAt(0).toUpperCase()+key.slice(1));
  input.onchange=()=>setDev(key,input.checked);
 }
+
+function leaveLobby(){
+ if(document.pointerLockElement)document.exitPointerLock();
+ setScoped(false);joined=false;dead=false;selectedRoom=null;selectedRoomPassword="";
+ if(ws){const old=ws;ws=null;old.close();}
+ for(const [id,g] of players){scene.remove(g);players.delete(id);}
+ $("playerList").style.display="none";$("devPanel").style.display="none";$("settingsPanel").style.display="none";
+ $("shopPanel").style.display="none";$("chatBox").style.display="none";$("deathScreen").style.display="none";
+ $("lobbyPanel").style.display="grid";$("lobbyStatus").textContent="Ты вышел из лобби.";
+ message.textContent="";loadRooms();
+}
+$("leaveLobbyButton").onclick=leaveLobby;
+
 function closeSettings(){$("settingsPanel").style.display="none";if(joined&&!dead)renderer.domElement.requestPointerLock();}
 $("settingsCloseButton").onclick=closeSettings;
 $("volumeSlider").value=Math.round(soundVolume*100);$("soundToggle").checked=soundEnabled;$("invertToggle").checked=invertMouse;
@@ -236,7 +252,8 @@ $("invertToggle").onchange=e=>{invertMouse=e.target.checked;localStorage.setItem
 function applyMapTheme(id){
  const themes={desert:{sky:0x9ab4c1,fog:0x9ab4c1,ground:0x8b8869},forest:{sky:0x78968a,fog:0x78968a,ground:0x53684b},city:{sky:0x87919c,fog:0x87919c,ground:0x62666a},snow:{sky:0xc6d8e6,fog:0xc6d8e6,ground:0xd8e2e8},factory:{sky:0x747b80,fog:0x747b80,ground:0x555b5d},mountain:{sky:0x91a5b8,fog:0x91a5b8,ground:0x77766f}};
  const t=themes[id]||themes.desert;scene.background.setHex(t.sky);scene.fog.color.setHex(t.fog);ground.material.color.setHex(t.ground);
- const extra=new THREE.Group();scene.add(extra);
+ if(mapObjects){scene.remove(mapObjects);mapObjects.traverse(o=>{if(o.geometry)o.geometry.dispose();});}
+ const extra=new THREE.Group();mapObjects=extra;scene.add(extra);
  seed=20261122; solidBoxes.length=0; solidCircles.length=0;
  const put=(geo,color,x,y,z)=>{const o=new THREE.Mesh(geo,mat(color));o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;extra.add(o);return o;};
  if(id==="desert"){
@@ -340,6 +357,32 @@ function makeOpponent(id,nick="Игрок",cosmetic="standard"){
   targetX:0,targetZ:0,targetY:0,targetYaw:0,lastX:0,lastZ:0,moving:false,dead:false};
  players.set(id,g);return g;
 }
+
+function appendChat(nick,text){
+ const box=$("chatMessages"),line=document.createElement("div"),name=document.createElement("b"),body=document.createElement("span");
+ name.textContent=nick+": ";body.textContent=text;line.append(name,body);box.append(line);
+ while(box.children.length>40)box.firstElementChild.remove();
+ box.scrollTop=box.scrollHeight;
+}
+function openChat(){
+ if(!joined)return;
+ $("chatBox").style.display="block";
+ if(document.pointerLockElement)document.exitPointerLock();
+ $("chatInput").focus();
+}
+function closeChat(){
+ $("chatBox").style.display="none";
+ $("chatInput").value="";
+ if(joined&&!dead)renderer.domElement.requestPointerLock();
+}
+$("chatInput").addEventListener("keydown",e=>{
+ if(e.code==="Enter"){
+  const text=$("chatInput").value.trim();
+  if(text&&ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:"chat",text}));
+  $("chatInput").value="";e.preventDefault();
+ }else if(e.code==="Escape"){e.preventDefault();closeChat();}
+});
+
 function connect(){
  room=selectedRoom;
  if(!authToken||!room)return;
@@ -357,9 +400,11 @@ function connect(){
    updateCount();message.textContent="Лобби открыто · "+currentUser.nick;
    document.body.requestPointerLock?.();
   } else if(m.type==="error"){message.textContent=m.message;joined=false;if(document.pointerLockElement)document.exitPointerLock();$("lobbyStatus").textContent=m.message;$("lobbyPanel").style.display="grid";if(ws)ws.close();}
-  else if(m.type==="playerJoined"){
+  else if(m.type==="chatMessage"){
+   appendChat(m.nick,m.text);
+  } else if(m.type==="playerJoined"){
    const g=makeOpponent(m.player.id,m.player.nick,m.player.cosmetic);g.position.set(m.player.x,0,m.player.z);
-   g.userData.targetX=m.player.x;g.userData.targetZ=m.player.z;g.userData.targetYaw=m.player.yaw||0;g.userData.health=m.player.hp??100;
+   g.userData.targetX=m.player.x;g.userData.targetZ=m.player.z;g.userData.targetY=m.player.y||0;g.userData.targetYaw=m.player.yaw||0;g.userData.health=m.player.hp??100;
    message.textContent="Противник подключился!";setTimeout(()=>message.textContent="",1800);updateCount();
   } else if(m.type==="playerMoved"){
    let g=players.get(m.player.id);if(!g)g=makeOpponent(m.player.id);
@@ -408,8 +453,10 @@ document.addEventListener("mousemove",e=>{
  camera.rotation.set(pitch,yaw,0,"YXZ");
 });
 document.addEventListener("keydown",e=>{
- if(e.code==="RightShift"&&currentUser?.nick==="Panic"){e.preventDefault();openDevPanel();return;}
- if(e.code==="Escape"&&currentUser){e.preventDefault();if($("devPanel").style.display==="grid"){$("devPanel").style.display="none";}else if($("settingsPanel").style.display==="grid")closeSettings();else openSettings();return;}
+ if(e.target===$("chatInput"))return;
+ if(e.code==="KeyT"&&joined){e.preventDefault();openChat();return;}
+ if(e.code==="ShiftRight"&&currentUser){e.preventDefault();openDevPanel();return;}
+ if(e.code==="Escape"&&currentUser){e.preventDefault();if($("chatBox").style.display==="block"){closeChat();return;}if($("devPanel").style.display==="grid"){$("devPanel").style.display="none";}else if($("settingsPanel").style.display==="grid")closeSettings();else if($("shopPanel").style.display==="grid"){$("shopPanel").style.display="none";if(joined){$("lobbyPanel").style.display="none";}else{$("lobbyPanel").style.display="grid";}}else openSettings();return;}
  keys[e.code]=true;
  if(e.code==="KeyR")reload();
 });
@@ -502,7 +549,7 @@ function animate(){
   u.leftArm.rotation.x=-swing*.48;
   u.rightArm.rotation.x=swing*.48;
   // Gentle body bob while running/walking.
-  g.position.y=u.moving?Math.abs(Math.sin(t*2))*.035*stride:0;
+  g.position.y=u.targetY+(u.moving?Math.abs(Math.sin(t*2))*.035*stride:0);
   if(u.espBox)u.espBox.update();
   if(u.healthFill)u.healthFill.scale.x=Math.max(.01,Math.min(1,u.health/100));
  }

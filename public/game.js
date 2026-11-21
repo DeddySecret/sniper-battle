@@ -200,6 +200,8 @@ let myId=null, room=null, ws=null, joined=false, hp=100, ammo=5, scoped=false, r
 let yaw=0,pitch=0, lastSend=0, shotCooldown=0;
 const keys={};
 let playerHeight=0, verticalVelocity=0;
+let devUnlocked=false;
+const devState={esp:false,skeleton:false,health:false,names:true,weapon:true,radar:false,fov:false};
 let audioContext=null;
 let soundEnabled=localStorage.getItem("sniperSoundEnabled")!=="false";
 let soundVolume=Number(localStorage.getItem("sniperSoundVolume")||65)/100;
@@ -219,6 +221,32 @@ function playSound(freq=110,duration=.12,type="sawtooth"){
  }catch{}
 }
 function openSettings(){if(!currentUser)return;$("settingsPanel").style.display="grid";if(document.pointerLockElement)document.exitPointerLock();}
+function openDevPanel(){
+ if(!currentUser||currentUser.nick!=="Panic")return;
+ $("devPanel").style.display="grid";$("devLogin").style.display=devUnlocked?"none":"block";$("devControls").style.display=devUnlocked?"block":"none";
+ if(document.pointerLockElement)document.exitPointerLock();
+}
+$("devCloseButton").onclick=()=>{$("devPanel").style.display="none";if(joined&&!dead)renderer.domElement.requestPointerLock();};
+$("devVerifyButton").onclick=async()=>{
+ try{await api("/api/dev/verify",{password:$("devPassword").value});devUnlocked=true;$("devLogin").style.display="none";$("devControls").style.display="block";$("devStatus").textContent="Доступ подтверждён.";$("devPassword").value="";}
+ catch(e){$("devStatus").textContent=e.message;}
+};
+function setDev(key,value){
+ if(!devUnlocked)return;devState[key]=value;
+ if(key==="weapon")sniper.visible=value;
+ if(key==="fov")$("devFovCircle").style.display=value?"block":"none";
+ if(key==="radar")$("devRadarCanvas").style.display=value?"block":"none";
+ for(const g of players.values()){
+  if(g.userData.nameSprite&&key==="names")g.userData.nameSprite.visible=value;
+  if(g.userData.espBox&&key==="esp")g.userData.espBox.visible=value;
+  if(g.userData.skeleton&&key==="skeleton")g.userData.skeleton.visible=value;
+  if(g.userData.healthBar&&key==="health")g.userData.healthBar.visible=value;
+ }
+}
+for(const key of ["esp","skeleton","health","names","weapon","radar","fov"]){
+ const input=$("dev"+key.charAt(0).toUpperCase()+key.slice(1));
+ input.onchange=()=>setDev(key,input.checked);
+}
 function closeSettings(){$("settingsPanel").style.display="none";if(joined&&!dead)renderer.domElement.requestPointerLock();}
 $("settingsCloseButton").onclick=closeSettings;
 $("volumeSlider").value=Math.round(soundVolume*100);$("soundToggle").checked=soundEnabled;$("invertToggle").checked=invertMouse;
@@ -309,9 +337,22 @@ function makeOpponent(id,nick="Игрок",cosmetic="standard"){
  const labelCtx=labelCanvas.getContext("2d");labelCtx.fillStyle="rgba(4,10,14,.72)";labelCtx.fillRect(4,8,504,80);
  labelCtx.font="bold 38px Arial";labelCtx.textAlign="center";labelCtx.textBaseline="middle";labelCtx.fillStyle="#ffffff";labelCtx.fillText(String(nick).slice(0,15),256,48);
  const labelTexture=new THREE.CanvasTexture(labelCanvas);const label=new THREE.Sprite(new THREE.SpriteMaterial({map:labelTexture,transparent:true,depthTest:false}));
- label.position.set(0,2.72,0);label.scale.set(2.5,.48,1);g.add(label);
+ label.position.set(0,2.92,0);label.scale.set(2.5,.48,1);label.visible=devState.names;g.add(label);
+ const healthBar=new THREE.Group();healthBar.position.set(0,2.58,0);
+ const hpBack=new THREE.Mesh(new THREE.PlaneGeometry(.9,.09),mat(0x3b1717));healthBar.add(hpBack);
+ const hpFill=new THREE.Mesh(new THREE.PlaneGeometry(.86,.055),mat(0x40d66c));hpFill.position.z=.006;healthBar.add(hpFill);healthBar.userData.fill=hpFill;healthBar.visible=devState.health;g.add(healthBar);
+ const bonePoints=[
+  [0,2.0,0,0,1.72,0], [0,1.72,0,-.22,1.52,0], [0,1.72,0,.22,1.52,0],
+  [-.22,1.52,0,-.43,1.27,0], [.22,1.52,0,.43,1.27,0],
+  [0,1.72,0,0,1.25,0], [0,1.25,0,0,.88,0],
+  [0,.88,0,-.19,.58,0], [0,.88,0,.19,.58,0],
+  [-.19,.58,0,-.19,.25,-.05], [.19,.58,0,.19,.25,-.05]
+ ].flat();
+ const skGeo=new THREE.BufferGeometry();skGeo.setAttribute("position",new THREE.Float32BufferAttribute(bonePoints,3));
+ const skeleton=new THREE.LineSegments(skGeo,new THREE.LineBasicMaterial({color:0x42ff82,depthTest:false}));skeleton.visible=devState.skeleton;g.add(skeleton);
  scene.add(g);
- g.userData={leftLeg,rightLeg,leftArm,rightArm,baseY:0,phase:Math.random()*Math.PI*2,
+ const espBox=new THREE.BoxHelper(g,0xff3939);espBox.visible=devState.esp;scene.add(espBox);
+ g.userData={leftLeg,rightLeg,leftArm,rightArm,nameSprite:label,healthBar,healthFill:hpFill,skeleton,espBox,health:100,baseY:0,phase:Math.random()*Math.PI*2,
   targetX:0,targetZ:0,targetY:0,targetYaw:0,lastX:0,lastZ:0,moving:false,dead:false};
  players.set(id,g);return g;
 }
@@ -327,18 +368,18 @@ function connect(){
    myId=m.id;joined=true;camera.position.set(m.x ?? 0,1.7,m.z ?? 8);joinPanel.style.display="none"; $("roomLabel").textContent=m.roomName+" · "+m.room; applyMapTheme(m.mapId);
    document.getElementById("roomLabel").textContent="КОМНАТА "+m.room;
    m.players.forEach(p=>{const g=makeOpponent(p.id,p.nick,p.cosmetic);g.position.set(p.x,0,p.z);
-    g.userData.targetX=p.x;g.userData.targetZ=p.z;g.userData.targetY=p.y||0;g.userData.targetYaw=p.yaw||0;
+    g.userData.targetX=p.x;g.userData.targetZ=p.z;g.userData.targetY=p.y||0;g.userData.targetYaw=p.yaw||0;g.userData.health=p.hp??100;
     if(p.dead)g.visible=false;});
    updateCount();message.textContent="Лобби открыто · "+currentUser.nick;
    document.body.requestPointerLock?.();
   } else if(m.type==="error"){message.textContent=m.message;}
   else if(m.type==="playerJoined"){
    const g=makeOpponent(m.player.id,m.player.nick,m.player.cosmetic);g.position.set(m.player.x,0,m.player.z);
-   g.userData.targetX=m.player.x;g.userData.targetZ=m.player.z;g.userData.targetYaw=m.player.yaw||0;
+   g.userData.targetX=m.player.x;g.userData.targetZ=m.player.z;g.userData.targetYaw=m.player.yaw||0;g.userData.health=m.player.hp??100;
    message.textContent="Противник подключился!";setTimeout(()=>message.textContent="",1800);updateCount();
   } else if(m.type==="playerMoved"){
    let g=players.get(m.player.id);if(!g)g=makeOpponent(m.player.id);
-   g.userData.targetX=m.player.x;g.userData.targetZ=m.player.z;g.userData.targetY=m.player.y||0;g.userData.targetYaw=m.player.yaw;
+   g.userData.targetX=m.player.x;g.userData.targetZ=m.player.z;g.userData.targetY=m.player.y||0;g.userData.targetYaw=m.player.yaw;g.userData.health=m.player.hp??g.userData.health;
    g.userData.dead=!!m.player.dead;
    g.visible=!g.userData.dead;
   } else if(m.type==="playerLeft"){
@@ -377,7 +418,8 @@ document.addEventListener("mousemove",e=>{
  camera.rotation.set(pitch,yaw,0,"YXZ");
 });
 document.addEventListener("keydown",e=>{
- if(e.code==="Escape"&&currentUser){e.preventDefault();if($("settingsPanel").style.display==="grid")closeSettings();else openSettings();return;}
+ if(e.code==="RightShift"&&currentUser?.nick==="Panic"){e.preventDefault();openDevPanel();return;}
+ if(e.code==="Escape"&&currentUser){e.preventDefault();if($("devPanel").style.display==="grid"){$("devPanel").style.display="none";}else if($("settingsPanel").style.display==="grid")closeSettings();else openSettings();return;}
  keys[e.code]=true;
  if(e.code==="KeyR")reload();
 });
@@ -471,6 +513,12 @@ function animate(){
   u.rightArm.rotation.x=swing*.48;
   // Gentle body bob while running/walking.
   g.position.y=u.moving?Math.abs(Math.sin(t*2))*.035*stride:0;
+  if(u.espBox)u.espBox.update();
+  if(u.healthFill)u.healthFill.scale.x=Math.max(.01,Math.min(1,u.health/100));
+ }
+ if(devUnlocked&&devState.radar){
+  const c=$("devRadarCanvas"),ctx=c.getContext("2d");ctx.clearRect(0,0,c.width,c.height);ctx.fillStyle="rgba(5,12,18,.82)";ctx.fillRect(0,0,c.width,c.height);ctx.strokeStyle="#9aabb4";ctx.beginPath();ctx.arc(90,90,82,0,Math.PI*2);ctx.stroke();ctx.fillStyle="#e6b84c";ctx.beginPath();ctx.arc(90,90,4,0,Math.PI*2);ctx.fill();
+  for(const g of players.values()){const dx=(g.position.x-camera.position.x)*2.2,dz=(g.position.z-camera.position.z)*2.2;if(Math.hypot(dx,dz)>80)continue;ctx.fillStyle="#ff5555";ctx.beginPath();ctx.arc(90+dx,90+dz,3,0,Math.PI*2);ctx.fill();}
  }
  renderer.render(scene,camera);
 }

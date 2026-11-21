@@ -18,7 +18,7 @@ New account, lobby and map-selection work is being developed on `feature/full-lo
 The web service needs:
 - `DATABASE_URL`: Render PostgreSQL Internal Database URL (keep it secret).
 - `AUTH_SECRET`: optional long random secret for signing login tokens. If omitted, the server derives the signing key from `DATABASE_URL`.
-- `DEV_OVERLAY_PASSWORD`: private developer-overlay password. Set it only in Render Environment; never put it in GitHub or chat. The overlay is available only to the account named `Panic` and is verified by the server.
+- `DEV_OVERLAY_PASSWORD`: private developer-overlay password. Set it only in Render Environment; never put it in GitHub or chat. Register the reserved account with the exact nickname `Panic` and use this same secret as its account password. The overlay is available only to that account and is verified by the server.
 
 Never commit database URLs, passwords, or signing secrets to GitHub.
 

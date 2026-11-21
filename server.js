@@ -211,7 +211,7 @@ app.post("/api/activity", auth, async (req,res) => {
       UPDATE users SET
         activity_window_started_at=CASE WHEN NOW() >= activity_window_started_at + INTERVAL '24 hours' THEN NOW() ELSE activity_window_started_at END,
         activity_seconds=(CASE WHEN NOW() >= activity_window_started_at + INTERVAL '24 hours' THEN 0 ELSE activity_seconds END)
-          + LEAST(300,GREATEST(0,COALESCE(EXTRACT(EPOCH FROM (NOW()-last_activity_at)),0)::INTEGER)),
+          + LEAST(90,GREATEST(0,COALESCE(EXTRACT(EPOCH FROM (NOW()-last_activity_at)),0)::INTEGER)),
         time_coins=CASE WHEN NOW() >= activity_window_started_at + INTERVAL '24 hours' THEN 0 ELSE time_coins END,
         last_activity_at=NOW()
       WHERE id=$1
@@ -264,6 +264,7 @@ wss.on("connection", ws => {
     if (m.type === "join") {
       if (p.room) return;
       const user = readToken(m.token);
+      if (!pool) return send(ws, { type: "error", message: "База аккаунтов временно недоступна." });
       if (!user) return send(ws, { type: "error", message: "Сначала войди в аккаунт." });
       const room = safeRoom(m.room);
       const roomInfo = rooms.get(room);

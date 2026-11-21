@@ -106,10 +106,76 @@ for(const side of [-1,1]){
 }
 camera.add(sniper);sniper.position.set(.34,-.28,-.58);scene.add(camera);
 
+
+// Account and lobby flow: no gameplay socket exists until the player is authenticated and joins a lobby.
+let authToken = localStorage.getItem("sniperBattleToken") || "";
+let currentUser = null;
+let selectedRoom = null;
+let selectedMap = "desert";
+const $ = id => document.getElementById(id);
+async function api(path, body) {
+ const response = await fetch(path, { method: body ? "POST" : "GET", headers: { "Content-Type":"application/json", ...(authToken ? { Authorization:"Bearer "+authToken } : {}) }, body: body ? JSON.stringify(body) : undefined });
+ const data = await response.json().catch(()=>({error:"Ошибка сервера"}));
+ if (!response.ok) throw new Error(data.error || "Ошибка запроса");
+ return data;
+}
+function showAuth(){ $("authPanel").style.display="grid"; $("lobbyPanel").style.display="none"; joinPanel.style.display="none"; }
+function showLobby(){ $("authPanel").style.display="none"; $("lobbyPanel").style.display="grid"; joinPanel.style.display="none"; $("welcomeText").textContent="Игрок: "+currentUser.nick; loadRooms(); }
+async function authenticate(mode){
+ const nick=$("authNick").value.trim(), password=$("authPassword").value;
+ $("authStatus").textContent="Подожди...";
+ try{
+  const data=await api("/api/"+mode,{nick,password}); authToken=data.token;currentUser=data.user;
+  localStorage.setItem("sniperBattleToken",authToken);showLobby();$("authPassword").value="";
+ }catch(e){$("authStatus").textContent=e.message;}
+}
+$("loginButton").onclick=()=>authenticate("login");
+$("registerButton").onclick=()=>authenticate("register");
+$("authPassword").addEventListener("keydown",e=>{if(e.key==="Enter")authenticate("login");});
+$("logoutButton").onclick=()=>{authToken="";currentUser=null;localStorage.removeItem("sniperBattleToken");if(ws)ws.close();joined=false;showAuth();};
+async function loadRooms(){
+ try{
+  const data=await api("/api/rooms");
+  $("roomList").innerHTML="";
+  if(!data.rooms.length){$("roomList").textContent="Пока нет открытых лобби. Создай своё!";return;}
+  for(const r of data.rooms){
+   const row=document.createElement("div");row.className="roomEntry";
+   const info=document.createElement("span");info.textContent=r.name+" · "+r.mapName+" · "+r.count+"/15"+(r.private?" · 🔒":"");
+   const btn=document.createElement("button");btn.className="secondary";btn.textContent="ВЫБРАТЬ";
+   btn.onclick=()=>{$("roomCode").value=r.code;$("joinRoomPassword").focus();};
+   row.append(info,btn);$("roomList").append(row);
+  }
+ }catch(e){$("roomList").textContent=e.message;}
+}
+$("refreshRoomsButton").onclick=loadRooms;
+$("createRoomButton").onclick=async()=>{
+ try{const data=await api("/api/rooms/create",{name:$("roomName").value,mapId:$("mapSelect").value,password:$("createRoomPassword").value});
+  selectedRoom=data.room.code;selectedMap=data.room.mapId;beginGame();}catch(e){$("lobbyStatus").textContent=e.message;}
+};
+$("joinRoomButton").onclick=async()=>{
+ try{const data=await api("/api/rooms/join",{code:$("roomCode").value,password:$("joinRoomPassword").value});
+  selectedRoom=data.room.code;selectedMap=data.room.mapId;beginGame();}catch(e){$("lobbyStatus").textContent=e.message;}
+};
+async function beginGame(){
+ $("lobbyPanel").style.display="none";joinPanel.style.display="none";
+ document.body.requestPointerLock?.();
+ connect();
+}
+(async()=>{
+ if(!authToken){showAuth();return;}
+ try{const data=await api("/api/me");currentUser=data.user;showLobby();}
+ catch{authToken="";localStorage.removeItem("sniperBattleToken");showAuth();}
+})();
+
 const players = new Map();
 let myId=null, room=null, ws=null, joined=false, hp=100, ammo=5, scoped=false, reloading=false, dead=false;
 let yaw=0,pitch=0, lastSend=0, shotCooldown=0;
 const keys={};
+let playerHeight=0, verticalVelocity=0;
+function applyMapTheme(id){
+ const themes={desert:{sky:0x9ab4c1,fog:0x9ab4c1,ground:0x8b8869},forest:{sky:0x78968a,fog:0x78968a,ground:0x53684b},city:{sky:0x87919c,fog:0x87919c,ground:0x62666a},snow:{sky:0xc6d8e6,fog:0xc6d8e6,ground:0xd8e2e8},factory:{sky:0x747b80,fog:0x747b80,ground:0x555b5d},mountain:{sky:0x91a5b8,fog:0x91a5b8,ground:0x77766f}};
+ const t=themes[id]||themes.desert;scene.background.setHex(t.sky);scene.fog.color.setHex(t.fog);ground.material.color.setHex(t.ground);
+}
 const message=document.getElementById("message");
 const health=document.getElementById("health");
 const ammoLabel=document.getElementById("ammo");
@@ -175,18 +241,20 @@ function makeOpponent(id){
  players.set(id,g);return g;
 }
 function connect(){
- room=document.getElementById("roomInput").value.trim().toUpperCase()||"DUEL";
+ room=selectedRoom;
+ if(!authToken||!room)return;
+ $("roomLabel").textContent="ЛОББИ "+room;
  ws=new WebSocket((location.protocol==="https:"?"wss://":"ws://")+location.host);
- ws.onopen=()=>ws.send(JSON.stringify({type:"join",room}));
+ ws.onopen=()=>ws.send(JSON.stringify({type:"join",room,token:authToken}));
  ws.onmessage=e=>{
   const m=JSON.parse(e.data);
   if(m.type==="joined"){
-   myId=m.id;joined=true;camera.position.set(m.x ?? 0,1.7,m.z ?? 8);joinPanel.style.display="none";
+   myId=m.id;joined=true;camera.position.set(m.x ?? 0,1.7,m.z ?? 8);joinPanel.style.display="none"; $("roomLabel").textContent=m.roomName+" · "+m.room; applyMapTheme(m.mapId);
    document.getElementById("roomLabel").textContent="КОМНАТА "+m.room;
    m.players.forEach(p=>{const g=makeOpponent(p.id);g.position.set(p.x,0,p.z);
     g.userData.targetX=p.x;g.userData.targetZ=p.z;g.userData.targetYaw=p.yaw||0;
     if(p.dead)g.visible=false;});
-   updateCount();message.textContent="Ожидание второго игрока...";
+   updateCount();message.textContent="Лобби открыто · "+currentUser.nick;
    document.body.requestPointerLock?.();
   } else if(m.type==="error"){message.textContent=m.message;}
   else if(m.type==="playerJoined"){
@@ -224,8 +292,8 @@ function connect(){
  };
  ws.onclose=()=>{joined=false;message.textContent="Соединение потеряно";};
 }
-function updateCount(n){playersLabel.textContent="ИГРОКИ "+(n??(players.size+1))+"/10";}
-document.getElementById("joinButton").onclick=connect;
+function updateCount(n){playersLabel.textContent="ИГРОКИ "+(n??(players.size+1))+"/15";}
+
 
 document.addEventListener("mousemove",e=>{
  if(!joined||document.pointerLockElement!==renderer.domElement)return;
@@ -288,6 +356,7 @@ function animate(){
   const dir=new THREE.Vector3();
   if(keys.KeyW)dir.add(forward);if(keys.KeyS)dir.sub(forward);
   if(keys.KeyD)dir.add(right);if(keys.KeyA)dir.sub(right);
+  if(keys.Space && playerHeight<=0.001){verticalVelocity=7.2;keys.Space=false;}
   if(dir.lengthSq()>0){
    dir.normalize().multiplyScalar((keys.ShiftLeft?7:4.5)*dt);
    const nx=camera.position.x+dir.x, nz=camera.position.z+dir.z;
@@ -295,7 +364,8 @@ function animate(){
    if(!blockedAt(nx,camera.position.z)) camera.position.x=nx;
    if(!blockedAt(camera.position.x,nz)) camera.position.z=nz;
   }
-  camera.position.y=1.7;
+  verticalVelocity-=18*dt;playerHeight=Math.max(0,playerHeight+verticalVelocity*dt);if(playerHeight===0)verticalVelocity=0;
+  camera.position.y=1.7+playerHeight;
   if(performance.now()-lastSend>65){
    lastSend=performance.now();ws.send(JSON.stringify({type:"move",x:camera.position.x,z:camera.position.z,yaw}));
   }

@@ -1,32 +1,15 @@
 <!doctype html>
 <html lang="ru">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Sniper Battle 3D</title>
-<link rel="stylesheet" href="style.css">
-</head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sniper Battle 3D</title><link rel="stylesheet" href="style.css"></head>
 <body>
-<div id="hud">
-  <div class="brand">SNIPER <b>BATTLE</b> <small>3D • DUEL</small></div>
-  <div class="stats"><span id="roomLabel">КОМНАТА —</span><span id="playersLabel">ИГРОКИ 0/10</span><span id="health">❤ 100</span><span id="ammo">▣ 5 / 5</span></div>
-</div>
-<div id="crosshair">+</div>
-<div id="scope"><div class="scope-cross"></div></div>
-<div id="message">Подключение...</div>
-<div id="joinPanel">
-  <div class="panel">
-    <div class="logo">SNIPER <b>BATTLE</b></div>
-    <p>Снайперская дуэль на двоих</p>
-    <label>КОД КОМНАТЫ</label>
-    <input id="roomInput" maxlength="12" value="DUEL" autocomplete="off">
-    <button id="joinButton">ВОЙТИ В БОЙ</button>
-  </div>
-</div>
-<div id="deathScreen">
-  <div class="death-card">
-    <div class="death-title">ВЫ УСТРАНЕНЫ</div>
-    <div class="death-subtitle">Возрождение через 2 секунды...</div>
-  </div>
-</div>
-<script type="module" src="game.js"></script>
-</body></html>
+<div id="hud"><div class="brand">SNIPER <b>BATTLE</b><small>3D • MULTIPLAYER</small></div><div class="stats"><span id="roomLabel">ЛОББИ —</span><span id="playersLabel">ИГРОКИ 0/15</span><span id="health">❤ 100</span><span id="ammo">▣ 5 / 5</span></div></div>
+<div id="crosshair">+</div><aside id="playerList"><b>ИГРОКИ</b><div id="playerRows"></div></aside><div id="devFovCircle"></div><canvas id="devRadarCanvas" width="180" height="180"></canvas><div id="scope"><div class="scope-cross"></div></div><div id="message">Войди в аккаунт</div>
+<section id="authPanel" class="screen"><div class="panel wide"><div class="logo">SNIPER <b>BATTLE</b></div><p>Создай аккаунт или войди, чтобы играть</p><label>ИГРОВОЙ НИК (3–15 СИМВОЛОВ)</label><input id="authNick" maxlength="15" autocomplete="username" placeholder="Твой ник"><label>ПАРОЛЬ</label><input id="authPassword" type="password" maxlength="72" autocomplete="current-password" placeholder="Пароль"><div class="buttonRow"><button id="loginButton">ВОЙТИ</button><button id="registerButton" class="secondary">РЕГИСТРАЦИЯ</button></div><small id="authStatus">Ник будет отображаться над персонажем.</small></div></section>
+<section id="lobbyPanel" class="screen" style="display:none"><div class="panel lobby"><div class="lobbyTop"><div><div class="logo">БОЕВОЕ ЛОББИ</div><p id="welcomeText">Привет!</p></div><div class="lobbyActions"><button id="shopOpenButton" class="secondary smallButton">МАГАЗИН</button><button id="logoutButton" class="secondary smallButton">ВЫЙТИ</button></div></div>
+<div class="lobbyGrid"><div class="lobbyCard"><h3>СОЗДАТЬ ЛОББИ</h3><label>НАЗВАНИЕ</label><input id="roomName" maxlength="24" value="Снайперская битва"><label>ВЫБЕРИ КАРТУ</label><select id="mapSelect"><option value="desert">🏜️ Пустыня</option><option value="forest">🌲 Лес</option><option value="city">🏙️ Город</option><option value="snow">❄️ Снежная база</option><option value="factory">🏭 Завод</option><option value="mountain">🏔️ Горный перевал</option></select><label>ПАРОЛЬ КОМНАТЫ (НЕОБЯЗАТЕЛЬНО)</label><input id="createRoomPassword" maxlength="32" type="password" placeholder="Оставь пустым для открытой"><button id="createRoomButton">СОЗДАТЬ И ВОЙТИ</button></div>
+<div class="lobbyCard"><h3>НАЙТИ ЛОББИ</h3><label>КОМНАТЫ</label><div id="roomList" class="roomList">Загрузка комнат...</div><label>ИЛИ ВВЕДИ КОД</label><input id="roomCode" maxlength="8" placeholder="КОД КОМНАТЫ"><input id="joinRoomPassword" maxlength="32" type="password" placeholder="Пароль, если требуется"><button id="joinRoomButton">ВОЙТИ В ЛОББИ</button><button id="refreshRoomsButton" class="secondary">ОБНОВИТЬ СПИСОК</button></div></div><small id="lobbyStatus">В комнате может быть до 15 игроков.</small></div></section>
+<section id="devPanel" class="screen" style="display:none"><div class="panel settingsPanel"><div class="lobbyTop"><div><div class="logo">DEV OVERLAY</div><p>Только аккаунт Panic</p></div><button id="devCloseButton" class="secondary smallButton">ЗАКРЫТЬ</button></div><div id="devLogin"><label>ПАРОЛЬ РАЗРАБОТЧИКА</label><input id="devPassword" type="password" autocomplete="off"><button id="devVerifyButton">ПОДТВЕРДИТЬ</button><small id="devStatus">Пароль проверяется сервером.</small></div><div id="devControls" style="display:none"><label class="settingCheck"><input id="devEsp" type="checkbox"> ESP — рамки игроков</label><label class="settingCheck"><input id="devSkeleton" type="checkbox"> SKELETON — скелеты</label><label class="settingCheck"><input id="devHealth" type="checkbox"> HEALTH — здоровье</label><label class="settingCheck"><input id="devNames" type="checkbox" checked> NAMES — ники</label><label class="settingCheck"><input id="devWeapon" type="checkbox" checked> WEAPON — оружие</label><label class="settingCheck"><input id="devRadar" type="checkbox"> RADAR — радар</label><label class="settingCheck"><input id="devFov" type="checkbox"> FOV CIRCLE — круг обзора</label></div></div></section>
+<section id="settingsPanel" class="screen" style="display:none"><div class="panel settingsPanel"><div class="lobbyTop"><div><div class="logo">НАСТРОЙКИ</div><p>Управление игрой</p></div><button id="settingsCloseButton" class="secondary smallButton">ЗАКРЫТЬ</button></div><label for="volumeSlider">ГРОМКОСТЬ ЗВУКА</label><input id="volumeSlider" type="range" min="0" max="100" value="65"><label class="settingCheck"><input id="soundToggle" type="checkbox" checked> ЗВУКИ ВКЛЮЧЕНЫ</label><label class="settingCheck"><input id="invertToggle" type="checkbox"> ИНВЕРТИРОВАТЬ МЫШЬ</label><small>WASD — движение · Shift — бег · Space — прыжок · ЛКМ — выстрел · ПКМ — прицел · R — перезарядка · ESC — настройки</small></div></section>
+<section id="shopPanel" class="screen" style="display:none"><div class="panel shopPanel"><div class="lobbyTop"><div><div class="logo">МАГАЗИН</div><p>Косметика и экипировка</p></div><button id="shopCloseButton" class="secondary smallButton">НАЗАД</button></div><div class="shopBalance">ТВОИ МОНЕТЫ: <b id="shopCoins">0</b></div><div id="shopItems" class="shopItems"></div><small id="shopStatus">Монеты: +1 за каждые 5 убийств и за каждые 5 минут в игре. До 28 монет за время в сутки.</small></div></section>
+<div id="joinPanel" style="display:none"></div><div id="deathScreen"><div class="death-card"><div class="death-title">ВЫ УСТРАНЕНЫ</div><div class="death-subtitle">Возрождение через 2 секунды...</div></div></div>
+<script type="module" src="game.js"></script></body></html>

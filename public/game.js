@@ -229,6 +229,19 @@ for(const key of ["esp","skeleton","health","names","weapon","radar","fov"]){
  const input=$("dev"+key.charAt(0).toUpperCase()+key.slice(1));
  input.onchange=()=>setDev(key,input.checked);
 }
+
+function leaveLobby(){
+ if(document.pointerLockElement)document.exitPointerLock();
+ setScoped(false);joined=false;dead=false;selectedRoom=null;selectedRoomPassword="";
+ if(ws){const old=ws;ws=null;old.close();}
+ for(const [id,g] of players){scene.remove(g);players.delete(id);}
+ $("playerList").style.display="none";$("devPanel").style.display="none";$("settingsPanel").style.display="none";
+ $("shopPanel").style.display="none";$("chatBox").style.display="none";$("deathScreen").style.display="none";
+ $("lobbyPanel").style.display="grid";$("lobbyStatus").textContent="Ты вышел из лобби.";
+ message.textContent="";loadRooms();
+}
+$("leaveLobbyButton").onclick=leaveLobby;
+
 function closeSettings(){$("settingsPanel").style.display="none";if(joined&&!dead)renderer.domElement.requestPointerLock();}
 $("settingsCloseButton").onclick=closeSettings;
 $("volumeSlider").value=Math.round(soundVolume*100);$("soundToggle").checked=soundEnabled;$("invertToggle").checked=invertMouse;
@@ -342,6 +355,32 @@ function makeOpponent(id,nick="Игрок",cosmetic="standard"){
   targetX:0,targetZ:0,targetY:0,targetYaw:0,lastX:0,lastZ:0,moving:false,dead:false};
  players.set(id,g);return g;
 }
+
+function appendChat(nick,text){
+ const box=$("chatMessages"),line=document.createElement("div"),name=document.createElement("b"),body=document.createElement("span");
+ name.textContent=nick+": ";body.textContent=text;line.append(name,body);box.append(line);
+ while(box.children.length>40)box.firstElementChild.remove();
+ box.scrollTop=box.scrollHeight;
+}
+function openChat(){
+ if(!joined)return;
+ $("chatBox").style.display="block";
+ if(document.pointerLockElement)document.exitPointerLock();
+ $("chatInput").focus();
+}
+function closeChat(){
+ $("chatBox").style.display="none";
+ $("chatInput").value="";
+ if(joined&&!dead)renderer.domElement.requestPointerLock();
+}
+$("chatInput").addEventListener("keydown",e=>{
+ if(e.code==="Enter"){
+  const text=$("chatInput").value.trim();
+  if(text&&ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:"chat",text}));
+  $("chatInput").value="";e.preventDefault();
+ }else if(e.code==="Escape"){e.preventDefault();closeChat();}
+});
+
 function connect(){
  room=selectedRoom;
  if(!authToken||!room)return;
@@ -361,7 +400,7 @@ function connect(){
   } else if(m.type==="error"){message.textContent=m.message;joined=false;if(document.pointerLockElement)document.exitPointerLock();$("lobbyStatus").textContent=m.message;$("lobbyPanel").style.display="grid";if(ws)ws.close();}
   else if(m.type==="playerJoined"){
    const g=makeOpponent(m.player.id,m.player.nick,m.player.cosmetic);g.position.set(m.player.x,0,m.player.z);
-   g.userData.targetX=m.player.x;g.userData.targetZ=m.player.z;g.userData.targetYaw=m.player.yaw||0;g.userData.health=m.player.hp??100;
+   g.userData.targetX=m.player.x;g.userData.targetZ=m.player.z;g.userData.targetY=m.player.y||0;g.userData.targetYaw=m.player.yaw||0;g.userData.health=m.player.hp??100;
    message.textContent="Противник подключился!";setTimeout(()=>message.textContent="",1800);updateCount();
   } else if(m.type==="playerMoved"){
    let g=players.get(m.player.id);if(!g)g=makeOpponent(m.player.id);
@@ -410,8 +449,10 @@ document.addEventListener("mousemove",e=>{
  camera.rotation.set(pitch,yaw,0,"YXZ");
 });
 document.addEventListener("keydown",e=>{
+ if(e.target===$("chatInput"))return;
+ if(e.code==="KeyT"&&joined){e.preventDefault();openChat();return;}
  if(e.code==="RightShift"&&currentUser){e.preventDefault();openDevPanel();return;}
- if(e.code==="Escape"&&currentUser){e.preventDefault();if($("devPanel").style.display==="grid"){$("devPanel").style.display="none";}else if($("settingsPanel").style.display==="grid")closeSettings();else if($("shopPanel").style.display==="grid"){$("shopPanel").style.display="none";if(joined){$("lobbyPanel").style.display="none";}else{$("lobbyPanel").style.display="grid";}}else openSettings();return;}
+ if(e.code==="Escape"&&currentUser){e.preventDefault();if($("chatBox").style.display==="block"){closeChat();return;}if($("devPanel").style.display==="grid"){$("devPanel").style.display="none";}else if($("settingsPanel").style.display==="grid")closeSettings();else if($("shopPanel").style.display==="grid"){$("shopPanel").style.display="none";if(joined){$("lobbyPanel").style.display="none";}else{$("lobbyPanel").style.display="grid";}}else openSettings();return;}
  keys[e.code]=true;
  if(e.code==="KeyR")reload();
 });
@@ -504,7 +545,7 @@ function animate(){
   u.leftArm.rotation.x=-swing*.48;
   u.rightArm.rotation.x=swing*.48;
   // Gentle body bob while running/walking.
-  g.position.y=u.moving?Math.abs(Math.sin(t*2))*.035*stride:0;
+  g.position.y=u.targetY+(u.moving?Math.abs(Math.sin(t*2))*.035*stride:0);
   if(u.espBox)u.espBox.update();
   if(u.healthFill)u.healthFill.scale.x=Math.max(.01,Math.min(1,u.health/100));
  }

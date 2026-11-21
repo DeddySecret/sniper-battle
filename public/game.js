@@ -119,8 +119,8 @@ async function api(path, body) {
  if (!response.ok) throw new Error(data.error || "Ошибка запроса");
  return data;
 }
-function showAuth(){ $("authPanel").style.display="grid"; $("lobbyPanel").style.display="none"; joinPanel.style.display="none"; }
-function showLobby(){ $("authPanel").style.display="none"; $("lobbyPanel").style.display="grid"; joinPanel.style.display="none"; $("welcomeText").textContent="Игрок: "+currentUser.nick; loadRooms(); }
+function showAuth(){ $("authPanel").style.display="grid"; $("lobbyPanel").style.display="none"; }
+function showLobby(){ $("authPanel").style.display="none"; $("lobbyPanel").style.display="grid"; $("welcomeText").textContent="Игрок: "+currentUser.nick; loadRooms(); }
 async function authenticate(mode){
  const nick=$("authNick").value.trim(), password=$("authPassword").value;
  $("authStatus").textContent="Подожди...";

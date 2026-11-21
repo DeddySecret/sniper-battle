@@ -212,18 +212,26 @@ app.post("/api/activity", auth, async (req,res) => {
         activity_window_started_at=CASE WHEN NOW() >= activity_window_started_at + INTERVAL '24 hours' THEN NOW() ELSE activity_window_started_at END,
         activity_seconds=(CASE WHEN NOW() >= activity_window_started_at + INTERVAL '24 hours' THEN 0 ELSE activity_seconds END)
           + LEAST(90,GREATEST(0,COALESCE(EXTRACT(EPOCH FROM (NOW()-last_activity_at)),0)::INTEGER)),
-        time_coins=CASE WHEN NOW() >= activity_window_started_at + INTERVAL '24 hours' THEN 0 ELSE time_coins END,
+        time_coins=GREATEST(
+          CASE WHEN NOW() >= activity_window_started_at + INTERVAL '24 hours' THEN 0 ELSE time_coins END,
+          LEAST(28,FLOOR((
+            (CASE WHEN NOW() >= activity_window_started_at + INTERVAL '24 hours' THEN 0 ELSE activity_seconds END)
+            + LEAST(90,GREATEST(0,COALESCE(EXTRACT(EPOCH FROM (NOW()-last_activity_at)),0)::INTEGER))
+          )::NUMERIC/300)::INTEGER)
+        ),
+        coins=coins+GREATEST(
+          0,
+          LEAST(28,FLOOR((
+            (CASE WHEN NOW() >= activity_window_started_at + INTERVAL '24 hours' THEN 0 ELSE activity_seconds END)
+            + LEAST(90,GREATEST(0,COALESCE(EXTRACT(EPOCH FROM (NOW()-last_activity_at)),0)::INTEGER))
+          )::NUMERIC/300)::INTEGER)
+          - (CASE WHEN NOW() >= activity_window_started_at + INTERVAL '24 hours' THEN 0 ELSE time_coins END)
+        ),
         last_activity_at=NOW()
       WHERE id=$1
       RETURNING coins,activity_seconds,time_coins
     `,[req.user.id]);
     const row=result.rows[0];
-    const earned=Math.min(28,Math.floor(row.activity_seconds/300));
-    const delta=Math.max(0,earned-row.time_coins);
-    if(delta){
-      const updated=await pool.query("UPDATE users SET coins=coins+$1,time_coins=$2 WHERE id=$3 RETURNING coins",[delta,earned,req.user.id]);
-      row.coins=updated.rows[0].coins;row.time_coins=earned;
-    }
     res.json({coins:row.coins,nextTimeCoinIn:row.time_coins>=28?0:300-(row.activity_seconds%300),dailyTimeCoins:row.time_coins});
   }catch(e){console.error("activity:",e);res.status(500).json({error:"Не удалось обновить игровое время."});}
 });

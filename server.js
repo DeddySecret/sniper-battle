@@ -124,16 +124,6 @@ async function initDb() {
   `);
 }
 
-app.post("/api/dev/verify", auth, (req,res) => {
-  if (req.user.nick !== "Panic") return res.status(403).json({error:"Доступ запрещён."});
-  const configured=process.env.DEV_OVERLAY_PASSWORD || "";
-  const supplied=String(req.body.password || "");
-  if(!configured) return res.status(503).json({error:"Пароль разработчика не настроен на сервере."});
-  const a=Buffer.from(configured), b=Buffer.from(supplied);
-  if(a.length!==b.length || !crypto.timingSafeEqual(a,b)) return res.status(401).json({error:"Неверный пароль разработчика."});
-  res.json({ok:true});
-});
-
 app.get("/api/status", (req, res) => res.json({ database: !!pool, maps: MAPS }));
 app.post("/api/register", async (req, res) => {
   try {

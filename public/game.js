@@ -119,8 +119,35 @@ async function api(path, body) {
  if (!response.ok) throw new Error(data.error || "Ошибка запроса");
  return data;
 }
-function showAuth(){ $("authPanel").style.display="grid"; $("lobbyPanel").style.display="none"; }
-function showLobby(){ $("authPanel").style.display="none"; $("lobbyPanel").style.display="grid"; $("welcomeText").textContent="Игрок: "+currentUser.nick; loadRooms(); }
+function showAuth(){ $("authPanel").style.display="grid"; $("lobbyPanel").style.display="none"; $("shopPanel").style.display="none"; }
+let activityTimer=null;
+async function pulseActivity(){try{await api("/api/activity");}catch(e){console.warn("activity update:",e.message);}}
+function startActivity(){if(activityTimer)clearInterval(activityTimer);pulseActivity();activityTimer=setInterval(pulseActivity,60000);}
+function showLobby(){ $("authPanel").style.display="none"; $("shopPanel").style.display="none"; $("lobbyPanel").style.display="grid"; $("welcomeText").textContent="Игрок: "+currentUser.nick; loadRooms();startActivity(); }
+async function openShop(){
+ try{
+  const data=await api("/api/shop");$("shopCoins").textContent=data.coins;$("shopItems").innerHTML="";
+  for(const item of data.items){
+   const card=document.createElement("div");card.className="shopItem";
+   const title=document.createElement("b");title.textContent=item.name;
+   const desc=document.createElement("small");desc.textContent=item.description;
+   const price=document.createElement("span");price.textContent=item.price===0?"Бесплатно":item.price+" монет";
+   const action=document.createElement("button");action.className=item.owned?"secondary":"";
+   action.textContent=item.equipped?"НАДЕТО":item.owned?"НАДЕТЬ":"КУПИТЬ";action.disabled=!!item.equipped;
+   action.onclick=async()=>{
+    try{
+     if(!item.owned){const bought=await api("/api/shop/buy",{itemId:item.id});$("shopCoins").textContent=bought.coins;}
+     await api("/api/shop/equip",{itemId:item.id});await openShop();$("shopStatus").textContent="Предмет успешно экипирован.";
+    }catch(e){$("shopStatus").textContent=e.message;}
+   };
+   card.append(title,desc,price,action);$("shopItems").append(card);
+  }
+  $("lobbyPanel").style.display="none";$("authPanel").style.display="none";$("shopPanel").style.display="grid";
+ }catch(e){$("lobbyStatus").textContent=e.message;}
+}
+$("shopOpenButton").onclick=openShop;
+$("shopCloseButton").onclick=()=>{$("shopPanel").style.display="none";$("lobbyPanel").style.display="grid";};
+
 async function authenticate(mode){
  const nick=$("authNick").value.trim(), password=$("authPassword").value;
  $("authStatus").textContent="Подожди...";
@@ -132,7 +159,7 @@ async function authenticate(mode){
 $("loginButton").onclick=()=>authenticate("login");
 $("registerButton").onclick=()=>authenticate("register");
 $("authPassword").addEventListener("keydown",e=>{if(e.key==="Enter")authenticate("login");});
-$("logoutButton").onclick=()=>{authToken="";currentUser=null;localStorage.removeItem("sniperBattleToken");if(ws)ws.close();joined=false;showAuth();};
+$("logoutButton").onclick=()=>{authToken="";currentUser=null;localStorage.removeItem("sniperBattleToken");if(ws)ws.close();joined=false;if(activityTimer)clearInterval(activityTimer);showAuth();};
 async function loadRooms(){
  try{
   const data=await api("/api/rooms");
@@ -199,10 +226,10 @@ const playersLabel=document.getElementById("playersLabel");
 const scope=document.getElementById("scope");
 const joinPanel=document.getElementById("joinPanel");
 
-function makeOpponent(id){
+function makeOpponent(id,nick="Игрок",cosmetic="standard"){
  const g=new THREE.Group();
  const uniform=mat(0x465342,.92), dark=mat(0x202a25,.85), vestMat=mat(0x303b35,.8);
- const skin=mat(0xb98768,.9), fabric=mat(0x59624b,.95), metalMat=mat(0x252d30,.45);
+ const skin=mat(0xb98768,.9), fabric=mat(cosmetic==="arctic"?0xd7e1e4:cosmetic==="woodland"?0x354b36:0x59624b,.95), metalMat=mat(cosmetic==="gold"?0xb78a32:0x252d30,.45);
  const addMesh=(parent,geo,material,x,y,z,rx=0,ry=0,rz=0)=>{
   const m=new THREE.Mesh(geo,material);m.position.set(x,y,z);m.rotation.set(rx,ry,rz);
   m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;
@@ -251,7 +278,13 @@ function makeOpponent(id){
  addMesh(rifle,new THREE.BoxGeometry(.075,.12,.20),dark,0,-.01,.38);
  // small shoulder insignia
  addMesh(g,new THREE.BoxGeometry(.13,.10,.025),mat(0x8d9a78),-.34,1.53,-.04);
- g.position.set(0,0,0);scene.add(g);
+ g.position.set(0,0,0);
+ const labelCanvas=document.createElement("canvas");labelCanvas.width=512;labelCanvas.height=96;
+ const labelCtx=labelCanvas.getContext("2d");labelCtx.fillStyle="rgba(4,10,14,.72)";labelCtx.fillRect(4,8,504,80);
+ labelCtx.font="bold 38px Arial";labelCtx.textAlign="center";labelCtx.textBaseline="middle";labelCtx.fillStyle="#ffffff";labelCtx.fillText(String(nick).slice(0,15),256,48);
+ const labelTexture=new THREE.CanvasTexture(labelCanvas);const label=new THREE.Sprite(new THREE.SpriteMaterial({map:labelTexture,transparent:true,depthTest:false}));
+ label.position.set(0,2.72,0);label.scale.set(2.5,.48,1);g.add(label);
+ scene.add(g);
  g.userData={leftLeg,rightLeg,leftArm,rightArm,baseY:0,phase:Math.random()*Math.PI*2,
   targetX:0,targetZ:0,targetY:0,targetYaw:0,lastX:0,lastZ:0,moving:false,dead:false};
  players.set(id,g);return g;
@@ -267,14 +300,14 @@ function connect(){
   if(m.type==="joined"){
    myId=m.id;joined=true;camera.position.set(m.x ?? 0,1.7,m.z ?? 8);joinPanel.style.display="none"; $("roomLabel").textContent=m.roomName+" · "+m.room; applyMapTheme(m.mapId);
    document.getElementById("roomLabel").textContent="КОМНАТА "+m.room;
-   m.players.forEach(p=>{const g=makeOpponent(p.id);g.position.set(p.x,0,p.z);
+   m.players.forEach(p=>{const g=makeOpponent(p.id,p.nick,p.cosmetic);g.position.set(p.x,0,p.z);
     g.userData.targetX=p.x;g.userData.targetZ=p.z;g.userData.targetY=p.y||0;g.userData.targetYaw=p.yaw||0;
     if(p.dead)g.visible=false;});
    updateCount();message.textContent="Лобби открыто · "+currentUser.nick;
    document.body.requestPointerLock?.();
   } else if(m.type==="error"){message.textContent=m.message;}
   else if(m.type==="playerJoined"){
-   const g=makeOpponent(m.player.id);g.position.set(m.player.x,0,m.player.z);
+   const g=makeOpponent(m.player.id,m.player.nick,m.player.cosmetic);g.position.set(m.player.x,0,m.player.z);
    g.userData.targetX=m.player.x;g.userData.targetZ=m.player.z;g.userData.targetYaw=m.player.yaw||0;
    message.textContent="Противник подключился!";setTimeout(()=>message.textContent="",1800);updateCount();
   } else if(m.type==="playerMoved"){

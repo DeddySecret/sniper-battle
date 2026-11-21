@@ -253,7 +253,7 @@ function makeOpponent(id){
  addMesh(g,new THREE.BoxGeometry(.13,.10,.025),mat(0x8d9a78),-.34,1.53,-.04);
  g.position.set(0,0,0);scene.add(g);
  g.userData={leftLeg,rightLeg,leftArm,rightArm,baseY:0,phase:Math.random()*Math.PI*2,
-  targetX:0,targetZ:0,targetYaw:0,lastX:0,lastZ:0,moving:false,dead:false};
+  targetX:0,targetZ:0,targetY:0,targetYaw:0,lastX:0,lastZ:0,moving:false,dead:false};
  players.set(id,g);return g;
 }
 function connect(){
@@ -268,7 +268,7 @@ function connect(){
    myId=m.id;joined=true;camera.position.set(m.x ?? 0,1.7,m.z ?? 8);joinPanel.style.display="none"; $("roomLabel").textContent=m.roomName+" · "+m.room; applyMapTheme(m.mapId);
    document.getElementById("roomLabel").textContent="КОМНАТА "+m.room;
    m.players.forEach(p=>{const g=makeOpponent(p.id);g.position.set(p.x,0,p.z);
-    g.userData.targetX=p.x;g.userData.targetZ=p.z;g.userData.targetYaw=p.yaw||0;
+    g.userData.targetX=p.x;g.userData.targetZ=p.z;g.userData.targetY=p.y||0;g.userData.targetYaw=p.yaw||0;
     if(p.dead)g.visible=false;});
    updateCount();message.textContent="Лобби открыто · "+currentUser.nick;
    document.body.requestPointerLock?.();
@@ -279,7 +279,7 @@ function connect(){
    message.textContent="Противник подключился!";setTimeout(()=>message.textContent="",1800);updateCount();
   } else if(m.type==="playerMoved"){
    let g=players.get(m.player.id);if(!g)g=makeOpponent(m.player.id);
-   g.userData.targetX=m.player.x;g.userData.targetZ=m.player.z;g.userData.targetYaw=m.player.yaw;
+   g.userData.targetX=m.player.x;g.userData.targetZ=m.player.z;g.userData.targetY=m.player.y||0;g.userData.targetYaw=m.player.yaw;
    g.userData.dead=!!m.player.dead;
    g.visible=!g.userData.dead;
   } else if(m.type==="playerLeft"){
@@ -383,7 +383,7 @@ function animate(){
   verticalVelocity-=18*dt;playerHeight=Math.max(0,playerHeight+verticalVelocity*dt);if(playerHeight===0)verticalVelocity=0;
   camera.position.y=1.7+playerHeight;
   if(performance.now()-lastSend>65){
-   lastSend=performance.now();ws.send(JSON.stringify({type:"move",x:camera.position.x,z:camera.position.z,yaw}));
+   lastSend=performance.now();ws.send(JSON.stringify({type:"move",x:camera.position.x,z:camera.position.z,y:playerHeight,yaw}));
   }
  }
  // Subtle procedural soldier movement makes opponents feel less static.
@@ -395,6 +395,7 @@ function animate(){
   const blend=1-Math.exp(-dt*13);
   g.position.x=THREE.MathUtils.lerp(g.position.x,u.targetX,blend);
   g.position.z=THREE.MathUtils.lerp(g.position.z,u.targetZ,blend);
+  g.position.y=THREE.MathUtils.lerp(g.position.y,u.targetY,blend);
   let yawDiff=((u.targetYaw-g.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI;
   g.rotation.y+=yawDiff*blend;
   const vx=(g.position.x-oldX)/Math.max(dt,.001), vz=(g.position.z-oldZ)/Math.max(dt,.001);

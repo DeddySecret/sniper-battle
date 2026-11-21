@@ -270,6 +270,43 @@ app.post("/api/rooms/join", auth, (req, res) => {
   res.json({ room: { code: room.code, name: room.name, mapId: room.mapId, mapName: MAPS.find(m => m.id === room.mapId).name } });
 });
 
+
+function spawnObstacles(mapId) {
+  const boxes=[], circles=[];
+  let seed=20261122;
+  const rand=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
+  if(mapId==="desert"){
+    for(let i=0;i<18;i++){const x=(rand()-.5)*58,z=(rand()-.5)*58;if(Math.abs(x)<8&&Math.abs(z)<8)continue;const sx=1.5+rand()*3,sz=1.5+rand()*3;boxes.push({minX:x-sx/2,maxX:x+sx/2,minZ:z-sz/2,maxZ:z+sz/2});}
+    for(let i=-2;i<=2;i++)boxes.push({minX:i*5-1.5,maxX:i*5+1.5,minZ:-14,maxZ:-12},{minX:i*5-1.5,maxX:i*5+1.5,minZ:12,maxZ:14});
+    for(let i=0;i<22;i++){const x=(rand()-.5)*60,z=(rand()-.5)*60;if(Math.abs(x)<8&&Math.abs(z)<8)continue;circles.push({x,z,r:.38});}
+  }else if(mapId==="forest"){
+    for(let i=0;i<34;i++){const x=(rand()-.5)*58,z=(rand()-.5)*58;if(Math.abs(x)<7&&Math.abs(z)<7)continue;circles.push({x,z,r:.34});}
+  }else if(mapId==="city"){
+    for(let i=0;i<12;i++){const x=(i%4-1.5)*13,z=(Math.floor(i/4)-1)*17;if(Math.abs(x)<7&&Math.abs(z)<7)continue;boxes.push({minX:x-2.5,maxX:x+2.5,minZ:z-2.5,maxZ:z+2.5});}
+  }else if(mapId==="snow"){
+    for(let i=0;i<14;i++){const x=(i%7-3)*7,z=(Math.floor(i/7)*2-1)*12;boxes.push({minX:x-1.5,maxX:x+1.5,minZ:z-1.1,maxZ:z+1.1});}
+  }else if(mapId==="factory"){
+    for(let i=0;i<5;i++){const x=(i-2)*10;circles.push({x,z:-15,r:1.15});boxes.push({minX:x-.28,maxX:x+2.28,minZ:9,maxZ:14});}
+  }else if(mapId==="mountain"){
+    for(let i=0;i<15;i++){const x=(i%5-2)*12,z=(Math.floor(i/5)-1)*17;circles.push({x,z,r:2.8+(i%3)*.3});}
+  }
+  return {boxes,circles};
+}
+function chooseSpawn(mapId, roomCode, excludeId) {
+  const {boxes,circles}=spawnObstacles(mapId);
+  const occupied=[...players.values()].filter(q=>q.room===roomCode&&q.id!==excludeId&&!q.dead);
+  const safe=(x,z)=>{
+    if(x < -20.4 || x > 20.4 || z < -20.4 || z > 20.4)return false;
+    for(const b of boxes){const cx=Math.max(b.minX,Math.min(x,b.maxX)),cz=Math.max(b.minZ,Math.min(z,b.maxZ));if((x-cx)**2+(z-cz)**2<.85**2)return false;}
+    for(const c of circles)if(Math.hypot(x-c.x,z-c.z)<c.r+.85)return false;
+    for(const p of occupied)if(Math.hypot(x-p.x,z-p.z)<2.5)return false;
+    return true;
+  };
+  for(let i=0;i<250;i++){const x=-19.5+Math.random()*39,z=-19.5+Math.random()*39;if(safe(x,z))return{x,z};}
+  for(let radius=2;radius<=19;radius+=1)for(let a=0;a<32;a++){const angle=a*Math.PI/16,x=Math.cos(angle)*radius,z=Math.sin(angle)*radius;if(safe(x,z))return{x,z};}
+  return{x:0,z:0};
+}
+
 wss.on("connection", ws => {
   const socketId = crypto.randomBytes(8).toString("hex");
   const p = { id: socketId, ws, room: null, user: null, x: 0, z: 0, yaw: 0, hp: 100, score: 0, lastShot: 0, lastMoveAt: 0, dead: false };
@@ -293,9 +330,8 @@ wss.on("connection", ws => {
       catch(e) { roomInfo.pending--; p.joining=false; console.error("profile:",e); return send(ws,{type:"error",message:"Не удалось загрузить профиль."}); }
       roomInfo.pending--; p.joining = false;
       p.user = { ...user, cosmetic: profile.rows[0]?.equipped_cosmetic || "standard" }; p.room = room; players.set(socketId, p);
-      const spawnIndex = roomCount(room) - 1;
-      const spawnAngle = (spawnIndex / 15) * Math.PI * 2;
-      p.x = Math.cos(spawnAngle) * 7; p.z = Math.sin(spawnAngle) * 7; p.yaw = Math.atan2(-p.x, -p.z); p.lastMoveAt = Date.now();
+      const spawn = chooseSpawn(roomInfo.mapId, room, socketId);
+      p.x = spawn.x; p.z = spawn.z; p.yaw = Math.atan2(-p.x, -p.z); p.lastMoveAt = Date.now();
       send(ws, { type: "joined", id: socketId, nick: user.nick, room, roomName: roomInfo.name, mapId: roomInfo.mapId, x: p.x, z: p.z,
         players: [...players.values()].filter(q => q.room === room && q.id !== socketId).map(publicPlayer) });
       broadcast(room, { type: "playerJoined", player: publicPlayer(p) }, ws);
@@ -303,6 +339,12 @@ wss.on("connection", ws => {
       return;
     }
     if (!p.room) return;
+    if (m.type === "chat") {
+      const text = String(m.text || "").replace(/[\\u0000-\\u001f\\u007f]/g, "").trim().slice(0, 160);
+      if (!text) return;
+      broadcast(p.room, { type: "chatMessage", nick: p.user.nick, text, at: Date.now() });
+      return;
+    }
     if (m.type === "move") {
       if (p.dead) return;
       const now = Date.now();
@@ -340,9 +382,8 @@ wss.on("connection", ws => {
       setTimeout(()=>{
         if(!players.has(target.id)||target.room!==deadRoom||!target.dead)return;
         target.dead=false;target.hp=100;
-        const idx=[...players.values()].filter(q=>q.room===deadRoom&&q.id!==target.id).length%15;
-        const angle=idx/15*Math.PI*2;
-        target.x=Math.cos(angle)*7;target.z=Math.sin(angle)*7;target.yaw=Math.atan2(-target.x,-target.z);
+        const spawn=chooseSpawn(rooms.get(deadRoom)?.mapId||"desert",deadRoom,target.id);
+        target.x=spawn.x;target.z=spawn.z;target.yaw=Math.atan2(-target.x,-target.z);
         send(target.ws,{type:"respawn",hp:100,x:target.x,z:target.z,yaw:target.yaw});
         broadcast(deadRoom,{type:"playerRespawned",player:publicPlayer(target)},target.ws);
       },2000);

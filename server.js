@@ -262,7 +262,7 @@ wss.on("connection", ws => {
     let m;
     try { m = JSON.parse(raw.toString()); } catch { return; }
     if (m.type === "join") {
-      if (p.room) return;
+      if (p.room || p.joining) return;
       const user = readToken(m.token);
       if (!pool) return send(ws, { type: "error", message: "База аккаунтов временно недоступна." });
       if (!user) return send(ws, { type: "error", message: "Сначала войди в аккаунт." });
@@ -271,8 +271,12 @@ wss.on("connection", ws => {
       if (!roomInfo) return send(ws, { type: "error", message: "Лобби больше не существует. Обнови список комнат." });
       if (roomInfo.passwordHash && !checkPassword(String(m.password || ""), roomInfo.passwordHash))
         return send(ws, { type: "error", message: "Неверный пароль комнаты." });
-      if (roomCount(room) >= 15) return send(ws, { type: "error", message: "Лобби заполнено (максимум 15 игроков)." });
-      const profile = await pool.query("SELECT equipped_cosmetic FROM users WHERE id=$1",[user.id]);
+      if (roomCount(room) + (roomInfo.pending || 0) >= 15) return send(ws, { type: "error", message: "Лобби заполнено (максимум 15 игроков)." });
+      p.joining = true; roomInfo.pending = (roomInfo.pending || 0) + 1;
+      let profile;
+      try { profile = await pool.query("SELECT equipped_cosmetic FROM users WHERE id=$1",[user.id]); }
+      catch(e) { roomInfo.pending--; p.joining=false; console.error("profile:",e); return send(ws,{type:"error",message:"Не удалось загрузить профиль."}); }
+      roomInfo.pending--; p.joining = false;
       p.user = { ...user, cosmetic: profile.rows[0]?.equipped_cosmetic || "standard" }; p.room = room; players.set(socketId, p);
       const spawnIndex = roomCount(room) - 1;
       const spawnAngle = (spawnIndex / 15) * Math.PI * 2;

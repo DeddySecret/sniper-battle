@@ -7,7 +7,7 @@ const { WebSocketServer } = require("ws");
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+const wss = new WebSocketServer({ server, maxPayload: 16 * 1024, perMessageDeflate: false });
 app.use(express.json({ limit: "32kb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -307,7 +307,7 @@ wss.on("connection", ws => {
       const wantedZ = Math.max(-21, Math.min(21, Number(m.z) || 0));
       const dx = wantedX - p.x, dz = wantedZ - p.z;
       const distance = Math.hypot(dx, dz);
-      const maxDistance = 9 * Math.min(elapsed, 0.25) + 0.15;
+      const maxDistance = 8.5 * Math.min(elapsed, 0.25) + 0.08;
       const scale = distance > maxDistance ? maxDistance / distance : 1;
       p.x = Math.max(-21, Math.min(21, p.x + dx * scale));
       p.z = Math.max(-21, Math.min(21, p.z + dz * scale));

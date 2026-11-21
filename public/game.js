@@ -175,6 +175,22 @@ let playerHeight=0, verticalVelocity=0;
 function applyMapTheme(id){
  const themes={desert:{sky:0x9ab4c1,fog:0x9ab4c1,ground:0x8b8869},forest:{sky:0x78968a,fog:0x78968a,ground:0x53684b},city:{sky:0x87919c,fog:0x87919c,ground:0x62666a},snow:{sky:0xc6d8e6,fog:0xc6d8e6,ground:0xd8e2e8},factory:{sky:0x747b80,fog:0x747b80,ground:0x555b5d},mountain:{sky:0x91a5b8,fog:0x91a5b8,ground:0x77766f}};
  const t=themes[id]||themes.desert;scene.background.setHex(t.sky);scene.fog.color.setHex(t.fog);ground.material.color.setHex(t.ground);
+ // Each selected arena gets its own large-scale landmarks and atmosphere.
+ const extra=new THREE.Group();scene.add(extra);
+ const put=(geo,color,x,y,z)=>{const o=new THREE.Mesh(geo,mat(color));o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;extra.add(o);return o;};
+ if(id==="forest"){
+  for(let i=0;i<34;i++){const x=(rand()-.5)*58,z=(rand()-.5)*58;if(Math.abs(x)<7&&Math.abs(z)<7)continue;put(new THREE.CylinderGeometry(.18,.28,2.2,7),0x493b2d,x,1.1,z);put(new THREE.ConeGeometry(1.45,3.6,7),0x294b35,x,3.7,z);}
+ }else if(id==="city"){
+  for(let i=0;i<12;i++){const x=(i%4-1.5)*13,z=(Math.floor(i/4)-1)*17; if(Math.abs(x)<7&&Math.abs(z)<7)continue;const h=4+(i%3)*2;put(new THREE.BoxGeometry(5,h,5),[0x555d67,0x74716c,0x4d5960][i%3],x,h/2,z);for(let y=1;y<h;y+=1.5)put(new THREE.BoxGeometry(3,.07,.04),0xb6a16d,x,y,z-2.53);}
+ }else if(id==="snow"){
+  for(let i=0;i<14;i++){const x=(i%7-3)*7,z=(Math.floor(i/7)*2-1)*12;put(new THREE.BoxGeometry(3,1.8,2.2),0xd9e7ee,x,.9,z);put(new THREE.ConeGeometry(1.5,2.8,5),0x91adbd,x,2.7,z);}
+ }else if(id==="factory"){
+  for(let i=0;i<5;i++){const x=(i-2)*10;put(new THREE.CylinderGeometry(1.15,1.15,6,12),0x596166,x,3,-15);put(new THREE.CylinderGeometry(.18,.28,9,10),0x343d42,x+2,4.5,12);put(new THREE.BoxGeometry(5,2,4),0x59615f,x,1,12);}
+ }else if(id==="mountain"){
+  for(let i=0;i<15;i++){const x=(i%5-2)*12,z=(Math.floor(i/5)-1)*17;put(new THREE.ConeGeometry(4+(i%3),5+(i%4),6),0x777b7b,x,2.5,z);put(new THREE.ConeGeometry(2.4,3,6),0xdce4e8,x,5.2+(i%4)*.35,z);}
+ }else{
+  for(let i=0;i<10;i++){const x=(i%5-2)*11,z=(Math.floor(i/5)-.5)*20;put(new THREE.BoxGeometry(4,1.5,3),0xb49a70,x,.75,z);}
+ }
 }
 const message=document.getElementById("message");
 const health=document.getElementById("health");

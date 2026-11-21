@@ -140,6 +140,7 @@ app.post("/api/register", async (req, res) => {
     const nick = String(req.body.nick || "").trim();
     const password = String(req.body.password || "");
     if (!/^[\p{L}\p{N}_-]{3,15}$/u.test(nick)) return res.status(400).json({ error: "Ник: 3–15 символов, только буквы, цифры, _ или -." });
+    if (nick.toLocaleLowerCase("ru-RU") === "panic" && (nick !== "Panic" || !process.env.DEV_OVERLAY_PASSWORD || password !== process.env.DEV_OVERLAY_PASSWORD)) return res.status(403).json({ error: "Имя Panic зарезервировано для разработчика." });
     if (password.length < 6 || password.length > 72) return res.status(400).json({ error: "Пароль должен быть длиной от 6 до 72 символов." });
     const hash = hashPassword(password);
     const result = await pool.query(
